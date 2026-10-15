@@ -307,3 +307,25 @@ details.outlet summary .row { justify-content: flex-start; }
 details.outlet summary .score { margin-left: auto; }
 details.outlet .olist { margin: 0; padding: 0 16px 8px; }
 .legend.one { flex-wrap: nowrap; gap: 12px; margin: 12px 0 2px; font-size: 12px; white-space: nowrap; overflow-x: auto; }
+
+/* ---- v4: skrin pertama padat ---- */
+.brand { flex-direction: column; align-items: flex-start; gap: 2px; }
+.top .status-line { padding: 0; min-height: 0; font-size: 11px; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42vw; }
+.top .status-line.err { color: #fff; font-weight: 600; }
+.top .status-line.err::before { content: '⚠ '; }
+main { padding-top: 12px; }
+
+.card.insights { padding: 2px 14px; display: block; }
+details.ins { display: block; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 0; background: none; }
+details.ins:last-child { border-bottom: 0; }
+details.ins summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 11px 0; cursor: pointer; }
+details.ins summary::-webkit-details-marker { display: none; }
+.ins-t { flex: 1; font-weight: 600; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ins-c { font-weight: 800; font-size: 14px; }
+details.ins.good .ins-c { color: var(--good); } details.ins.bad .ins-c { color: var(--bad); }
+details.ins p { margin: 0 0 11px 32px; font-size: 13px; color: var(--text-2); }
+.ins-i { width: 22px; height: 22px; font-size: 12px; }
+/* kontras ikon: bulatan penuh, ikon warna permukaan */
+.ins.good .ins-i, details.ins.good .ins-i { background: var(--good); color: var(--surface); }
+.ins.bad .ins-i, details.ins.bad .ins-i { background: var(--bad); color: var(--surface); }
+.flow .step .row + .sub { margin-top: 4px; }

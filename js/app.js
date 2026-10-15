@@ -122,12 +122,15 @@
   document.addEventListener('scroll', () => { tip.hidden = true; }, { passive: true });
 
   // ---------- 3 perkara bulan ni ----------
+  // Insight padat: satu baris setiap satu, ketik untuk butiran
   function insightBlock(y, m) {
     const ins = KD.insights(state.ds, y, m);
     if (!ins.length) return '';
-    return `<h2>3 perkara bulan ni</h2><div class="insights">${ins.map(i => `
-      <div class="ins ${i.kind}"><span class="ins-i" aria-hidden="true">${i.kind === 'good' ? '✓' : '✕'}</span>
-        <div><b>${esc(i.title)}</b><p>${esc(i.text)}</p></div></div>`).join('')}</div>`;
+    return `<div class="card insights">${ins.map(i => `
+      <details class="ins ${i.kind}"><summary>
+        <span class="ins-i" aria-hidden="true">${i.kind === 'good' ? '✓' : '✕'}</span>
+        <span class="ins-t">${esc(i.title)}</span><span class="ins-c">${esc(i.chip || '')}</span></summary>
+        <p>${esc(i.text)}</p></details>`).join('')}</div>`;
   }
 
   // ---------- views ----------
@@ -147,7 +150,7 @@
         h += `<div class="step ${isW ? 'weak' : ''} ${isS ? 'strong' : ''}">
           <div class="row"><span class="rate">${fmtPct(r, r != null && r < 10 ? 2 : 1)}${r > 100 ? ' <span class="dl">(&gt;100%)</span>' : ''}</span>
             ${isW ? '<span class="tag bad">✕ Paling lemah</span>' : isS ? '<span class="tag good">✓ Paling baik</span>' : ''}</div>
-          <div class="rbar" data-tip="${esc(`${s.note}: ${fmtPct(r)}${s.avg3 != null ? ' · purata 3 bln ' + fmtPct(s.avg3) : ''}`)}"><i style="width:${w.toFixed(1)}%"></i>${mk != null ? `<span class="avg" style="left:${mk.toFixed(1)}%"></span>` : ''}</div>
+          ${r != null && r < 5 ? '' : `<div class="rbar" data-tip="${esc(`${s.note}: ${fmtPct(r)}${s.avg3 != null ? ' · purata 3 bln ' + fmtPct(s.avg3) : ''}`)}"><i style="width:${w.toFixed(1)}%"></i>${mk != null ? `<span class="avg" style="left:${mk.toFixed(1)}%"></span>` : ''}</div>`}
           <div class="sub">${esc(s.note)} · ${cmpTxt}${dv}</div></div>`;
       }
       h += `<div class="stage"><span class="name">${esc(s.label)}</span><span class="v">${fmt(s.value)}</span></div>`;

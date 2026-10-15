@@ -470,23 +470,32 @@
   // 3 perkara bulan ini
   function insights(ds, y, m) {
     const K = kpis(ds, y, m);
+    // Pemberat ikut kepentingan bisnes: jualan & reach dulu, metrik engagement kemudian
+    const W = { leads: 3, walkin: 3, conversion: 3, wa: 3, views: 3, uniqueClicks: 2, profileViews: 2, newFollowers: 2, likes: 1, comments: 1, shares: 1, telegram: 1, ctrProfile: 1, ctrAction: 1 };
     const list = Object.values(K).filter(k => !k.floor && k.ratio != null);
     const out = [];
+    const trend = k => k.mom != null ? `, ${k.mom >= 0 ? 'naik' : 'turun'} ${Math.abs(k.mom).toFixed(0)}% vs bulan lepas` : '';
     if (list.length) {
-      const best = list.reduce((a, b) => (b.ratio > a.ratio ? b : a));
-      const worst = list.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-      out.push({ kind: 'good', title: `Terbaik: ${best.label}`, text: `${Math.round(best.ratio * 100)}% daripada target${best.partial ? ' (ikut kadar hari)' : ''}${best.mom != null ? `, ${best.mom >= 0 ? 'naik' : 'turun'} ${Math.abs(best.mom).toFixed(0)}% vs bulan lepas` : ''}.` });
-      out.push({ kind: 'bad', title: `Paling jauh: ${worst.label}`, text: `Baru ${Math.round(worst.ratio * 100)}% daripada target${worst.mom != null ? `, ${worst.mom >= 0 ? 'naik' : 'turun'} ${Math.abs(worst.mom).toFixed(0)}% vs bulan lepas` : ''}.` });
+      const imp = list.filter(k => (W[k.id] || 1) >= 2);
+      const pool = imp.length ? imp : list;
+      // terbaik: KPI penting yang capai paling tinggi; jika tiada yang capai, KPI mana-mana yang tertinggi
+      const hitImp = pool.filter(k => k.ratio >= 1);
+      const best = (hitImp.length ? hitImp : list).reduce((a, b) => (b.ratio > a.ratio ? b : a));
+      // paling jauh: jurang × pemberat, supaya Leads 60% lebih penting dari Comments 26%
+      const gap = k => Math.max(0, 1 - k.ratio) * (W[k.id] || 1);
+      const worst = list.reduce((a, b) => (gap(b) > gap(a) ? b : a));
+      out.push({ kind: 'good', title: best.label, chip: `${Math.round(best.ratio * 100)}%`, text: `${Math.round(best.ratio * 100)}% daripada target${best.partial ? ' (ikut kadar hari)' : ''}${trend(best)}.` });
+      if (gap(worst) > 0) out.push({ kind: 'bad', title: worst.label, chip: `${Math.round(worst.ratio * 100)}%`, text: `Baru ${Math.round(worst.ratio * 100)}% daripada target ${Math.round(worst.target).toLocaleString('en-MY')}${trend(worst)}.` });
     }
     const negNet = streak(ds, y, m, c => c.v.netGrowth != null && c.v.netGrowth < 0);
     const downViews = streak(ds, y, m, (c, p) => c.norm('views') != null && p.norm('views') != null && c.norm('views') < p.norm('views'));
     const upViews = streak(ds, y, m, (c, p) => c.norm('views') != null && p.norm('views') != null && c.norm('views') > p.norm('views'));
-    if (negNet >= 3) out.push({ kind: 'bad', title: 'Trend: followers menyusut', text: `Net followers negatif ${negNet} bulan berturut-turut (bulan ini ${Math.round(K.netGrowth.actual).toLocaleString('en-MY')}). Lebih ramai unfollow daripada follow baru.` });
-    else if (downViews >= 2) out.push({ kind: 'bad', title: 'Trend: views menurun', text: `TikTok views turun ${downViews} bulan berturut-turut.` });
-    else if (upViews >= 2) out.push({ kind: 'good', title: 'Trend: views meningkat', text: `TikTok views naik ${upViews} bulan berturut-turut.` });
+    if (negNet >= 3) out.push({ kind: 'bad', title: 'Followers menyusut', chip: `${negNet} bln`, text: `Net followers negatif ${negNet} bulan berturut-turut (bulan ini ${Math.round(K.netGrowth.actual).toLocaleString('en-MY')}). Lebih ramai unfollow daripada follow baru.` });
+    else if (downViews >= 2) out.push({ kind: 'bad', title: 'Views menurun', chip: `${downViews} bln`, text: `TikTok views turun ${downViews} bulan berturut-turut.` });
+    else if (upViews >= 2) out.push({ kind: 'good', title: 'Views meningkat', chip: `${upViews} bln`, text: `TikTok views naik ${upViews} bulan berturut-turut.` });
     else {
       const f = funnel(ds, y, m);
-      if (f.weakest) out.push({ kind: 'bad', title: `Funnel: ${f.weakest.label}`, text: `Kadar ${f.weakest.rate.toFixed(1)}%, ${Math.abs(f.weakest.vsAvg).toFixed(0)}% lebih rendah dari purata 3 bulan.` });
+      if (f.weakest) out.push({ kind: 'bad', title: f.weakest.label, chip: `${f.weakest.rate.toFixed(1)}%`, text: `Kadar ${f.weakest.rate.toFixed(1)}%, ${Math.abs(f.weakest.vsAvg).toFixed(0)}% lebih rendah dari purata 3 bulan.` });
     }
     return out.slice(0, 3);
   }
