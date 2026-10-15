@@ -49,7 +49,14 @@
   const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
 
   // ---------- fetch ----------
+  // Tab dengan gid: guna endpoint export (baca SEMUA baris, termasuk baris dalam row group yang di-collapse).
+  // gviz hanya untuk tab yang dicari ikut nama (bulan baru tanpa gid) — gviz langkau baris tersorok.
   function gvizUrl(sheetId, { gid, sheet, range }) {
+    if (gid !== undefined && !sheet) {
+      const e = new URLSearchParams({ format: 'csv', gid });
+      if (range) e.set('range', range);
+      return `https://docs.google.com/spreadsheets/d/${sheetId}/export?${e}`;
+    }
     const p = new URLSearchParams({ tqx: 'out:csv', headers: '0' });
     if (gid !== undefined) p.set('gid', gid);
     if (sheet) p.set('sheet', sheet);

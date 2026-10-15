@@ -1,5 +1,5 @@
 // Service worker: simpan app shell untuk buka laju & offline. Data Google Sheet sentiasa dari network.
-const CACHE = 'kliki-dash-shell-v1';
+const CACHE = 'kliki-dash-shell-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'js/config.js', 'js/data.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
