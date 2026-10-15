@@ -221,8 +221,6 @@ details summary { cursor: pointer; font-weight: 600; color: var(--text-2); font-
 .step b { color: var(--text); font-size: 15px; }
 .step .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .step .arrow { color: var(--muted); font-size: 16px; line-height: 1.2; }
-.step.weak { border-left-color: var(--bad); background: var(--bad-bg); border-radius: 0 10px 10px 0; padding-left: 10px; }
-.step.strong { border-left-color: var(--good); background: var(--good-bg); border-radius: 0 10px 10px 0; padding-left: 10px; }
 .tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; }
 .tag.bad { color: var(--bad); } .tag.good { color: var(--good); }
 .card.action { margin-top: 10px; border-left: 4px solid var(--brand); }
@@ -252,3 +250,60 @@ dialog#info-dlg::backdrop { background: rgba(10, 15, 25, .45); }
 .health { padding-left: 0; list-style: none; }
 .controls .icon-btn { flex: none; }
 @media (max-width: 440px) { .brand-sub { display: none; } }
+
+/* ---- v3 ---- */
+/* senarai KPI lebar penuh */
+.card.klist { padding: 4px 16px; }
+.krow { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.krow:last-child { border-bottom: 0; }
+.k-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.k-top .label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.k-top .st { font-size: 12px; }
+.k-top .pct { color: var(--text-2); font-weight: 600; margin-left: 2px; }
+.k-mid { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+.k-mid .value { font-size: 22px; font-weight: 750; letter-spacing: -.01em; }
+.kpi.hero .k-mid .value { font-size: 36px; font-weight: 800; letter-spacing: -.02em; }
+.k-mid .tg { font-size: 13px; color: var(--muted); font-weight: 500; }
+.kpi .prog { margin-top: 8px; height: 6px; }
+.kpi.hero .prog { height: 8px; }
+.kpi .deltas { margin-top: 6px; gap: 2px 14px; }
+
+/* aliran pelanggan */
+.card.flow { padding: 6px 16px; }
+.flow .stage { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; }
+.flow .stage .name { font-weight: 600; font-size: 14px; }
+.flow .stage .v { font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+.flow .step { display: block; margin: 0; padding: 10px 0 10px 14px; border-left: 3px solid var(--line); border-radius: 0; background: none; font-size: 12px; color: var(--muted); }
+.flow .step.weak { border-left-color: var(--bad); }
+.flow .step.strong { border-left-color: var(--good); }
+.flow .rate { font-size: 16px; font-weight: 750; color: var(--text); }
+.flow .rate .dl { font-size: 11px; font-weight: 500; color: var(--muted); }
+.flow .tag { margin: 0; }
+.rbar { position: relative; height: 6px; border-radius: 3px; background: var(--surface-2); margin: 6px 0 5px; }
+.rbar i { display: block; height: 100%; border-radius: 3px; background: var(--bar); }
+.flow .step.weak .rbar i { background: var(--bad); }
+.flow .step.strong .rbar i { background: var(--good); }
+.rbar .avg { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; border-radius: 1px; }
+
+/* outlet: jalur ringkasan */
+.ostrip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 520px) { .ostrip { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.otile { display: grid; gap: 4px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); color: inherit; text-decoration: none; }
+.otile .on { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.otile .os { font-size: 26px; font-weight: 800; line-height: 1; }
+.otile .os .of { font-size: 14px; font-weight: 600; color: var(--muted); }
+.otile .os.good { color: var(--good); } .otile .os.warn { color: var(--warn); } .otile .os.bad { color: var(--bad); }
+.otile .ob { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.otile .ob i { display: block; height: 100%; }
+.otile .ob i.good { background: var(--good); } .otile .ob i.warn { background: var(--warn); } .otile .ob i.bad { background: var(--bad); }
+.otile .om { font-size: 11px; color: var(--muted); }
+details.card.outlet { margin-top: 10px; padding: 0; }
+details.outlet summary { list-style: none; cursor: pointer; padding: 14px 16px; }
+details.outlet summary::-webkit-details-marker { display: none; }
+details.outlet summary .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+details.outlet summary .row::after { content: '▾'; color: var(--muted); margin-left: 8px; transition: transform .15s; }
+details.outlet[open] summary .row::after { transform: rotate(180deg); }
+details.outlet summary .row { justify-content: flex-start; }
+details.outlet summary .score { margin-left: auto; }
+details.outlet .olist { margin: 0; padding: 0 16px 8px; }
+.legend.one { flex-wrap: nowrap; gap: 12px; margin: 12px 0 2px; font-size: 12px; white-space: nowrap; overflow-x: auto; }

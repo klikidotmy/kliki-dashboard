@@ -46,27 +46,34 @@
     return `<span class="d">${v >= 0 ? '▲' : '▼'} ${a}% <span class="dl">${label}</span></span>`;
   }
 
-  // Kad KPI: satu isyarat (bar berwarna + ikon), delta vs bulan lepas & tahun lepas
+  // Beza vs tempoh lain. Untuk metrik yang boleh negatif (net followers), peratus tak bermakna: guna beza mutlak.
+  function cmp(k, base, label) {
+    if (k.nowN == null || base == null) return '';
+    if (k.floor || base < 0 || k.nowN < 0) {
+      const d = k.nowN - base;
+      return `<span class="d">${d >= 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))} <span class="dl">${label}</span></span>`;
+    }
+    return delta(KD.change(k.nowN, base), label);
+  }
+
+  // Kad KPI: lebar penuh, satu isyarat status (ikon + warna bar), nilai/target, satu baris perbandingan
   function kpiCard(k, opts = {}) {
     const st = k.status, live = k.partial;
     const [y, m] = parseKey(state.month);
     const prevLbl = monShort(...KD.prevYM(y, m)), lyLbl = monShort(y - 1, m);
-    let meta;
-    if (k.actual == null) meta = 'Tiada data';
-    else if (k.floor) meta = `Had bawah ${fmt(k.target)}`;
-    else {
-      meta = `${Math.round(st.pct)}% daripada ${fmtVal(k.target, k.unit)}`;
-      if (live && !k.unit) meta += ` · unjuran ${fmt(k.actual / k.pace)}`;
-    }
-    return `<div class="card kpi ${opts.hero ? 'hero' : ''}">
-      <div class="label">${esc(k.label)}</div>
-      <div class="value">${fmtVal(k.actual, k.unit)}</div>
+    const pctTxt = k.floor ? `had ${fmt(k.target)}` : (st.pct != null ? `${Math.round(st.pct)}%` : '');
+    const tgt = k.actual == null ? '' : k.floor ? '' : `<span class="tg">/ ${fmtVal(k.target, k.unit)}</span>`;
+    const proj = live && !k.unit && !k.floor && k.actual != null ? `<span class="d"><span class="dl">unjuran</span> ${fmt(k.actual / k.pace)}</span>` : '';
+    return `<div class="kpi ${opts.hero ? 'card hero' : 'krow'}">
+      <div class="k-top"><span class="label">${esc(k.label)}</span>
+        <span class="st ${st.level}">${iconOf(st)} ${statusWord(st, live)}${pctTxt ? ` <span class="pct">${pctTxt}</span>` : ''}</span></div>
+      <div class="k-mid"><span class="value">${fmtVal(k.actual, k.unit)}</span>${tgt}</div>
       ${k.floor || k.actual == null ? '' : bar(k.actual, k.target, st, k.pace)}
-      <div class="meta"><span class="st ${st.level}" title="${statusWord(st, live)}">${iconOf(st)} ${statusWord(st, live)}</span> · ${meta}</div>
-      <div class="deltas">${delta(k.mom, 'vs ' + prevLbl)}${delta(k.yoy, 'vs ' + lyLbl)}</div>
+      <div class="deltas">${proj}${cmp(k, k.prev, 'vs ' + prevLbl)}${cmp(k, k.lyN, 'vs ' + lyLbl)}</div>
       ${opts.extra || ''}
     </div>`;
   }
+  const kpiList = ks => `<div class="card klist">${ks.map(k => kpiCard(k)).join('')}</div>`;
 
   // ---------- chart (SVG, satu siri) ----------
   function barChart(data, opts = {}) {
@@ -129,28 +136,23 @@
     const f = KD.funnel(state.ds, y, m);
     const live = isCurrent(key);
     let h = insightBlock(y, m);
-    const vals = f.stages.map(s => s.value).filter(v => v > 0);
-    if (!vals.length) return h + `<div class="card empty">Belum ada data funnel untuk ${monLabel(key)}.</div>`;
-    const lmax = Math.log10(Math.max(...vals)), lmin = Math.log10(Math.max(1, Math.min(...vals)) / 2);
-    h += `<h2>Funnel pelanggan <span class="note">· ${monLabel(key)}${live ? ' (bulan semasa)' : ''}</span></h2><div class="card funnel">`;
+    if (!f.stages.some(s => s.value > 0)) return h + `<div class="card empty">Belum ada data aliran pelanggan untuk ${monLabel(key)}.</div>`;
+    h += `<h2>Aliran pelanggan <span class="note">· ${monLabel(key)}${live ? ' (bulan semasa)' : ''}</span></h2><div class="card flow">`;
     f.stages.forEach((s, i) => {
       if (i) {
         const isW = f.weakest && f.weakest.id === s.id, isS = f.strongest && f.strongest.id === s.id;
-        const cmp = s.avg3 != null ? `purata 3 bln ${fmtPct(s.avg3)}` : (s.prevRate != null ? `bulan lepas ${fmtPct(s.prevRate)}` : 'tiada perbandingan');
-        const dv = s.vsAvg == null ? '' : Math.abs(s.vsAvg) < 1 ? ' <span class="d">≈ sama</span>' : ` <span class="d">${s.vsAvg >= 0 ? '▲' : '▼'} ${Math.abs(s.vsAvg).toFixed(0)}%</span>`;
+        const r = s.rate, w = r == null ? 0 : Math.min(100, r), mk = s.avg3 == null ? null : Math.min(100, s.avg3);
+        const cmpTxt = s.avg3 != null ? `purata 3 bln ${fmtPct(s.avg3)}` : (s.prevRate != null ? `bulan lepas ${fmtPct(s.prevRate)}` : 'tiada perbandingan');
+        const dv = s.vsAvg == null ? '' : Math.abs(s.vsAvg) < 1 ? ' · ≈ sama' : ` · ${s.vsAvg >= 0 ? '▲' : '▼'} ${Math.abs(s.vsAvg).toFixed(0)}%`;
         h += `<div class="step ${isW ? 'weak' : ''} ${isS ? 'strong' : ''}">
-          <span class="arrow" aria-hidden="true">↓</span>
-          <div><b>${fmtPct(s.rate, s.rate != null && s.rate < 10 ? 2 : 1)}</b> ${esc(s.note)}
-          <div class="sub">${cmp}${dv}</div>
-          ${isW ? '<span class="tag bad">✕ Titik paling lemah</span>' : ''}${isS ? '<span class="tag good">✓ Paling baik</span>' : ''}</div></div>`;
+          <div class="row"><span class="rate">${fmtPct(r, r != null && r < 10 ? 2 : 1)}${r > 100 ? ' <span class="dl">(&gt;100%)</span>' : ''}</span>
+            ${isW ? '<span class="tag bad">✕ Paling lemah</span>' : isS ? '<span class="tag good">✓ Paling baik</span>' : ''}</div>
+          <div class="rbar" data-tip="${esc(`${s.note}: ${fmtPct(r)}${s.avg3 != null ? ' · purata 3 bln ' + fmtPct(s.avg3) : ''}`)}"><i style="width:${w.toFixed(1)}%"></i>${mk != null ? `<span class="avg" style="left:${mk.toFixed(1)}%"></span>` : ''}</div>
+          <div class="sub">${esc(s.note)} · ${cmpTxt}${dv}</div></div>`;
       }
-      const w = s.value > 0 ? Math.max(4, 100 * (Math.log10(s.value) - lmin) / (lmax - lmin)) : 0;
-      h += `<div class="stage"><div class="row"><span class="name">${esc(s.label)}</span><span class="v">${fmt(s.value)}</span></div>
-        <div class="fbar"><i style="width:${w.toFixed(1)}%"></i></div></div>`;
+      h += `<div class="stage"><span class="name">${esc(s.label)}</span><span class="v">${fmt(s.value)}</span></div>`;
     });
-    h += `</div><div class="chart-cap">Panjang bar ikut skala log supaya semua peringkat nampak. Klik WhatsApp bukan unik; Leads & Walk-in termasuk pelanggan dari saluran lain, jadi kadar boleh melebihi 100%. Titik paling lemah = kadar yang paling jatuh berbanding purata 3 bulan sebelum.</div>`;
-
-    // tindakan cadangan ikut titik lemah
+    h += `</div><div class="chart-cap">Bar = kadar peralihan (0–100%); garis kecil = purata 3 bulan. Ini aliran, bukan corong tertutup: klik WhatsApp tak unik, dan Leads/Walk-in termasuk pelanggan dari saluran lain.</div>`;
     const ACT = {
       profileViews: 'Hook 3 saat pertama dan CTA "tengok profile" dalam video.',
       uniqueClicks: 'Semak bio & pin video: pastikan sebab untuk klik link jelas (harga, promo, lokasi).',
@@ -169,12 +171,13 @@
     const tt = s.tiktok;
     let h = '';
     if (tt.days) {
-      const chart = barChart(tt.daily.map(d => ({ label: d.d, value: d.views, tip: `${d.d} ${MON[m - 1]}: ${fmt(d.views)} views` })), { aria: 'Views TikTok harian', labelEvery: 5, h: 120 })
-        + `<div class="chart-cap">Views harian · ${tt.days}/${s.daysInMonth} hari data · ketik bar untuk nilai</div>`;
+      const daily = T.tiktokViews / s.daysInMonth;
+      const chart = barChart(tt.daily.map(d => ({ label: d.d, value: d.views, tip: `${d.d} ${MON[m - 1]}: ${fmt(d.views)} views` })), { aria: 'Views TikTok harian', labelEvery: 5, h: 120, target: daily })
+        + `<div class="chart-cap">Views harian · garis putus = kadar sasaran ${fmt(daily)}/hari · ${tt.days}/${s.daysInMonth} hari data</div>`;
       h += `<div style="margin-top:10px">${kpiCard(K.views, { hero: true, extra: chart })}</div>`;
     } else h += `<div class="card empty" style="margin-top:10px">Tiada data TikTok Insight untuk ${monLabel(key)} lagi.</div>`;
 
-    const grid = ids => `<div class="grid">${ids.map(id => kpiCard(K[id])).join('')}</div>`;
+    const grid = ids => kpiList(ids.map(id => K[id]));
     if (tt.days) h += `<h2>TikTok engagement</h2>` + grid(['likes', 'comments', 'shares', 'profileViews', 'newFollowers', 'netGrowth']);
     h += `<h2>Traffic Linktree</h2>` + (K.uniqueClicks.actual != null ? grid(['uniqueClicks', 'ctrProfile', 'ctrAction', 'telegram']) : `<div class="card empty">Tiada data LINKTREE untuk bulan ini.</div>`);
     h += `<h2>Jualan (4 outlet)</h2>` + grid(['wa', 'leads', 'walkin', 'conversion']);
@@ -201,11 +204,12 @@
     const c = KD.contentStats(res.posts);
     if (!c.total) return `<div class="card empty">Belum ada post direkod untuk ${monLabel(key)}.</div>`;
     const pace = isCurrent(key) ? new Date().getDate() / daysIn(y, m) : 1;
-    const mk = (label, actual, target) => kpiCard({ label, actual, target, pace, partial: pace < 1, status: KD.status(actual, target, pace) });
+    const mk = (label, actual, target) => ({ label, actual, target, pace, partial: pace < 1, status: KD.status(actual, target, pace) });
     let h = res.warning ? `<div class="warn-box">⚠ ${esc(res.warning)}</div>` : '';
-    h += `<div class="grid" style="margin-top:10px">${mk('Total Content', c.total, T.totalContent)}${mk('Views per Post (jumlah)', c.views, T.viewsPerPost)}</div>`;
+    const top = [mk('Total Content', c.total, T.totalContent), mk('Views per Post (jumlah)', c.views, T.viewsPerPost)];
+    if (c.hasType) top.push(mk('POV Customer', c.pov, T.povCustomer), mk('Strategic', c.strategic, T.strategic));
+    h += `<div style="margin-top:10px">${kpiList(top)}</div>`;
     if (c.hasType) {
-      h += `<div class="grid" style="margin-top:10px">${mk('POV Customer', c.pov, T.povCustomer)}${mk('Strategic', c.strategic, T.strategic)}</div>`;
       const mix = (title, counts, tg) => `<div class="card"><b>${title}</b><table><thead><tr><th></th><th>Post</th><th>Target</th><th>Status</th></tr></thead><tbody>${Object.keys(tg).map(k => {
         const st = KD.status(counts[k], tg[k], pace);
         return `<tr><td>${esc(k)}</td><td><b>${counts[k]}</b></td><td>${tg[k]}</td><td><span class="st ${st.level}">${iconOf(st)}</span></td></tr>`;
@@ -259,7 +263,7 @@
       ['Leads', 'leads'], ['Walk-in', 'walkin'], ['Conversion', 'conversion'],
     ];
     const cards = CFG.outlets.map(x => {
-      let hit = 0, total = 0, list = '';
+      let hit = 0, total = 0, miss = [], list = '';
       for (const [label, k] of rows) {
         const tg = k === 'conversion' ? T.conversion : T.outlet[x][k];
         const a = o.outlets[x][k];
@@ -267,21 +271,30 @@
         if (a == null) { list += `<li><span class="st na">–</span><span class="k">${label}</span><span class="v">tiada data</span></li>`; continue; }
         total++;
         const p = po.outlets[x][k];
-        const st = KD.status(a, tg, k === 'conversion' ? 1 : pace, false, a != null && p != null ? a > p : null);
+        const st = KD.status(a, tg, k === 'conversion' ? 1 : pace, false, p != null ? a > p : null);
         if (st.level === 'good') hit++;
+        if (st.level === 'bad') miss.push(label);
         const val = k === 'conversion' ? fmtPct(a, 0) : fmt(a);
         const tv = k === 'conversion' ? tg + '%' : fmt(tg);
         list += `<li><span class="st ${st.level}" aria-label="${statusWord(st, live)}">${iconOf(st)}</span><span class="k">${label}</span><span class="v"><b>${val}</b> / ${tv}</span></li>`;
       }
       const ratio = total ? hit / total : 0;
-      const lvl = ratio >= 0.75 ? 'good' : ratio >= 0.5 ? 'warn' : 'bad';
-      return { x, hit, total, html: `<div class="card outlet">
-        <div class="row"><b class="oname">${CFG.outletNames[x]}</b><span class="score ${lvl}">${hit}/${total} capai</span></div>
-        <ul class="olist">${list}</ul></div>` };
-    });
-    let h = `<div class="legend" style="margin-top:12px"><span><span class="st good">✓</span> ${live ? 'On track' : 'Capai'}</span><span><span class="st warn">!</span> 80–99%</span><span><span class="st warn">↗</span> Bawah target, naik vs bulan lepas</span><span><span class="st bad">✕</span> Bawah target & tak naik</span></div>`;
-    h += cards.sort((a, b) => b.hit / b.total - a.hit / a.total).map(c => c.html).join('');
-    h += `<div class="chart-cap">Disusun ikut skor tertinggi. Conversion = Walk-in ÷ Leads. Klik WhatsApp/Lokasi dari tab LINKTREE (${CFG.linktree.year}). ${live ? `Bulan semasa: dinilai ikut kadar (${o.days.leads} hari data leads).` : ''} Pendang: tiada target RAW Repair & Before/After.</div>`;
+      // warna skor: tiada KPI merah = hijau/kuning; ada merah = kuning (≤1) atau merah
+      const lvl = !miss.length ? (ratio >= 0.75 ? 'good' : 'warn') : miss.length <= 1 ? 'warn' : 'bad';
+      return { x, hit, total, ratio, lvl, miss, list };
+    }).sort((a, b) => b.ratio - a.ratio);
+
+    let h = `<h2>Skor outlet <span class="note">· KPI capai daripada jumlah</span></h2><div class="ostrip">${cards.map(c => `
+      <a class="otile" href="#o-${c.x}"><span class="on">${CFG.outletNames[c.x]}</span>
+        <span class="os ${c.lvl}">${c.hit}<span class="of">/${c.total}</span></span>
+        <span class="ob"><i class="${c.lvl}" style="width:${(c.ratio * 100).toFixed(0)}%"></i></span>
+        <span class="om">${c.miss.length ? `${c.miss.length} merah` : 'tiada merah'}</span></a>`).join('')}</div>`;
+    h += `<div class="legend one"><span><span class="st good">✓</span> ${live ? 'On track' : 'Capai'}</span><span><span class="st warn">!</span> 80–99%</span><span><span class="st warn">↗</span> Naik</span><span><span class="st bad">✕</span> Belum</span></div>`;
+    h += cards.map((c, i) => `<details class="card outlet" id="o-${c.x}" ${i === cards.length - 1 ? 'open' : ''}>
+      <summary><span class="row"><b class="oname">${CFG.outletNames[c.x]}</b><span class="score ${c.lvl}">${c.hit}/${c.total} capai</span></span>
+      ${c.miss.length ? `<span class="sub">Merah: ${c.miss.join(', ')}</span>` : ''}</summary>
+      <ul class="olist">${c.list}</ul></details>`).join('');
+    h += `<div class="chart-cap">Ketik outlet untuk butiran (outlet paling lemah dibuka dulu). ↗ = bawah target tapi naik vs bulan lepas. Conversion = Walk-in ÷ Leads. Klik WhatsApp/Lokasi dari LINKTREE (${CFG.linktree.year}). ${live ? `Bulan semasa dinilai ikut kadar (${o.days.leads} hari data leads).` : ''}</div>`;
     return h;
   }
 
@@ -384,6 +397,13 @@
   // ---------- events ----------
   $('#month').addEventListener('change', e => { state.month = e.target.value; state.picked = true; render(); scrollTo(0, 0); });
   $('#refresh').addEventListener('click', () => { if (state.ds) state.ds.posts = {}; load(); });
+  // jalur outlet: buka butiran & skrol
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.otile'); if (!t) return;
+    e.preventDefault();
+    const d = document.querySelector(t.getAttribute('href')); if (!d) return;
+    d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   $('#info').addEventListener('click', () => { fillInfo(); $('#info-dlg').showModal(); });
   $('#info-close').addEventListener('click', () => $('#info-dlg').close());
   $('#info-dlg').addEventListener('click', e => { if (e.target.id === 'info-dlg') e.target.close(); });

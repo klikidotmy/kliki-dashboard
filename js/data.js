@@ -410,7 +410,7 @@
       const improving = now != null && p != null ? now > p : null;
       const st = status(actual, d.target(CFG.targets), pace, d.floor, improving);
       const ratio = d.floor || actual == null ? null : actual / (d.target(CFG.targets) * Math.max(pace, 0.0001));
-      out[d.id] = { ...d, target: d.target(CFG.targets), actual, pace, mom, yoy, prev: p, status: st, ratio, partial: pace < 1 };
+      out[d.id] = { ...d, target: d.target(CFG.targets), actual, pace, mom, yoy, prev: p, nowN: now, lyN: l, status: st, ratio, partial: pace < 1 };
     }
     return out;
   }
