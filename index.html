@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>KLIKI Marketing</title>
+  <meta name="description" content="Dashboard prestasi marketing media sosial KLIKI">
+  <meta name="theme-color" content="#046AD8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KLIKI Marketing">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">KLIKI</span>
+      <span class="brand-sub">Marketing</span>
+    </div>
+    <div class="controls">
+      <label class="sr" for="month">Bulan</label>
+      <select id="month" aria-label="Pilih bulan"></select>
+      <button id="refresh" class="icon-btn" aria-label="Muat semula data" title="Muat semula">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+      </button>
+    </div>
+  </header>
+  <div id="status-line" class="status-line" role="status"></div>
+
+  <main id="view" tabindex="-1">
+    <div class="loading"><div class="spinner"></div><p>Memuatkan data dari Google Sheet…</p></div>
+  </main>
+
+  <nav class="tabs" aria-label="Seksyen">
+    <button data-tab="ringkasan" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4zm10 7h6v-9h-6zM4 20h6v-4H4zm10-11h6V4h-6z"/></svg>
+      <span>Ringkasan</span>
+    </button>
+    <button data-tab="content">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm5 4.5v7l6-3.5z"/></svg>
+      <span>Content</span>
+    </button>
+    <button data-tab="outlet">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9M4 9h16v2a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1-6 0zm1 4v7h14v-7"/></svg>
+      <span>Outlet</span>
+    </button>
+    <button data-tab="trend">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9M4 20h16"/></svg>
+      <span>Trend</span>
+    </button>
+  </nav>
+
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
