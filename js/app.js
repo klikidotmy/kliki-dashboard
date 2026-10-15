@@ -145,17 +145,17 @@
       if (i) {
         const isW = f.weakest && f.weakest.id === s.id, isS = f.strongest && f.strongest.id === s.id;
         const r = s.rate, w = r == null ? 0 : Math.min(100, r), mk = s.avg3 == null ? null : Math.min(100, s.avg3);
-        const cmpTxt = s.avg3 != null ? `purata 3 bln ${fmtPct(s.avg3)}` : (s.prevRate != null ? `bulan lepas ${fmtPct(s.prevRate)}` : 'tiada perbandingan');
-        const dv = s.vsAvg == null ? '' : Math.abs(s.vsAvg) < 1 ? ' · ≈ sama' : ` · ${s.vsAvg >= 0 ? '▲' : '▼'} ${Math.abs(s.vsAvg).toFixed(0)}%`;
+        const cmpTxt = s.avg3 != null ? `Purata 3 bln ${fmtPct(s.avg3)}` : (s.prevRate != null ? `Bulan lepas ${fmtPct(s.prevRate)}` : 'Tiada perbandingan');
+        const dv = s.vsAvg == null ? '' : Math.abs(s.vsAvg) < 1 ? ' · ≈ sama' : ` · ${s.vsAvg >= 0 ? '▲' : '▼'}${Math.abs(s.vsAvg).toFixed(0)}%`;
         h += `<div class="step ${isW ? 'weak' : ''} ${isS ? 'strong' : ''}">
-          <div class="row"><span class="rate">${fmtPct(r, r != null && r < 10 ? 2 : 1)}${r > 100 ? ' <span class="dl">(&gt;100%)</span>' : ''}</span>
+          <div class="row"><span class="rate">${fmtPct(r, r != null && r < 10 ? 2 : 1)} <span class="rn">${esc(s.note)}</span></span>
             ${isW ? '<span class="tag bad">✕ Paling lemah</span>' : isS ? '<span class="tag good">✓ Paling baik</span>' : ''}</div>
           ${r != null && r < 5 ? '' : `<div class="rbar" data-tip="${esc(`${s.note}: ${fmtPct(r)}${s.avg3 != null ? ' · purata 3 bln ' + fmtPct(s.avg3) : ''}`)}"><i style="width:${w.toFixed(1)}%"></i>${mk != null ? `<span class="avg" style="left:${mk.toFixed(1)}%"></span>` : ''}</div>`}
-          <div class="sub">${esc(s.note)} · ${cmpTxt}${dv}</div></div>`;
+          <div class="sub">${cmpTxt}${dv}</div></div>`;
       }
       h += `<div class="stage"><span class="name">${esc(s.label)}</span><span class="v">${fmt(s.value)}</span></div>`;
     });
-    h += `</div><div class="chart-cap">Bar = kadar peralihan (0–100%); garis kecil = purata 3 bulan. Ini aliran, bukan corong tertutup: klik WhatsApp tak unik, dan Leads/Walk-in termasuk pelanggan dari saluran lain.</div>`;
+    h += `</div><div class="chart-cap">Setiap kadar = peringkat ini ÷ peringkat atas. Bar = kadar (0–100%); garis kecil = purata 3 bulan. Klik WhatsApp tak unik; Leads & Walk-in termasuk pelanggan dari saluran lain, jadi kadar boleh lebih 100%.</div>`;
     const ACT = {
       profileViews: 'Hook 3 saat pertama dan CTA "tengok profile" dalam video.',
       uniqueClicks: 'Semak bio & pin video: pastikan sebab untuk klik link jelas (harga, promo, lokasi).',

@@ -425,11 +425,11 @@
     { id: 'walkin', label: 'Walk-in' },
   ];
   const STEP_NOTE = {
-    profileViews: 'penonton yang buka profile',
-    uniqueClicks: 'pelawat profile yang klik Linktree',
-    wa: 'pelawat Linktree yang klik WhatsApp outlet',
-    leads: 'leads berbanding klik WhatsApp (leads juga datang dari saluran lain)',
-    walkin: 'leads yang datang ke kedai',
+    profileViews: 'buka profile',
+    uniqueClicks: 'klik Linktree',
+    wa: 'klik WhatsApp outlet',
+    leads: 'jadi leads',
+    walkin: 'datang ke kedai',
   };
   function funnel(ds, y, m) {
     const rates = (yy, mm) => {

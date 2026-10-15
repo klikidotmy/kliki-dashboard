@@ -329,3 +329,6 @@ details.ins p { margin: 0 0 11px 32px; font-size: 13px; color: var(--text-2); }
 .ins.good .ins-i, details.ins.good .ins-i { background: var(--good); color: var(--surface); }
 .ins.bad .ins-i, details.ins.bad .ins-i { background: var(--bad); color: var(--surface); }
 .flow .step .row + .sub { margin-top: 4px; }
+
+.flow .rate .rn { font-size: 13px; font-weight: 500; color: var(--text-2); margin-left: 4px; }
+.flow .step .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
