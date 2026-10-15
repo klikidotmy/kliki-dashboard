@@ -16,17 +16,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <header class="top">
     <div class="brand">
-      <span class="logo">KLIKI</span>
+      <img class="logo" src="icons/logo-white.png" alt="KLIKI" width="98" height="28">
       <span class="brand-sub">Marketing</span>
     </div>
     <div class="controls">
       <label class="sr" for="month">Bulan</label>
       <select id="month" aria-label="Pilih bulan"></select>
+      <button id="info" class="icon-btn" aria-label="Status data & panduan" title="Status data">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <button id="refresh" class="icon-btn" aria-label="Muat semula data" title="Muat semula">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
       </button>
@@ -39,7 +42,11 @@
   </main>
 
   <nav class="tabs" aria-label="Seksyen">
-    <button data-tab="ringkasan" class="active">
+    <button data-tab="funnel" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+      <span>Funnel</span>
+    </button>
+    <button data-tab="ringkasan">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4zm10 7h6v-9h-6zM4 20h6v-4H4zm10-11h6V4h-6z"/></svg>
       <span>Ringkasan</span>
     </button>
@@ -57,10 +64,15 @@
     </button>
   </nav>
 
+  <dialog id="info-dlg" aria-labelledby="info-title">
+    <div class="dlg-head"><b id="info-title">Status data</b><button id="info-close" class="x" aria-label="Tutup">✕</button></div>
+    <div id="info-body"></div>
+  </dialog>
+
   <div id="tip" class="tip" role="tooltip" hidden></div>
 
-  <script src="js/config.js?v=4"></script>
-  <script src="js/data.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/config.js?v=5"></script>
+  <script src="js/data.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

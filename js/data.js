@@ -111,7 +111,8 @@
       const texts = r.slice(3, vi).map(s => (s || '').trim());
       const type = texts.length === 2 ? texts[0] : '';
       const sub = texts.length >= 1 ? texts[texts.length - 1] : '';
-      posts.push({ date, outlet, kategori, type, sub: normSub(sub), views });
+      const url = (r.slice(0, 10).find(c => /^https?:\/\//i.test((c || '').trim())) || '').trim();
+      posts.push({ date, outlet, kategori, type, sub: normSub(sub), views, url });
     }
     return posts;
   }
@@ -213,7 +214,7 @@
     let result = { posts: [], tab: null, error: 'Tab bulan ini tak dijumpai' };
     for (const c of candidates) {
       try {
-        const rows = await fetchRows(CFG.sheets.reportContent, { ...c, range: 'A1:G300' });
+        const rows = await fetchRows(CFG.sheets.reportContent, { ...c, range: 'A1:J300' });
         const posts = parsePosts(rows);
         const dated = posts.filter(p => p.date);
         const match = dated.filter(p => p.date.y === y && p.date.m === m).length;
@@ -336,18 +337,161 @@
     return Object.keys(by).sort().map(k => ({ key: k, ...by[k] }));
   }
 
-  // Status berbanding target. pace = pecahan bulan yang dah berlalu (1 untuk bulan lepas).
-  function status(actual, target, pace = 1, floor = false) {
-    if (actual == null || target == null) return { level: 'na', pct: null };
-    if (floor) return { level: actual >= target ? 'good' : 'bad', pct: null };
+  // Status berbanding target. pace = pecahan bulan yang dah berlalu (1 untuk bulan penuh).
+  // improving: true jika prestasi (dinormalkan ikut hari) lebih baik dari bulan lepas.
+  // good = capai kadar; warn = bawah kadar tapi >= 80% ATAU sedang naik; bad = < 80% dan tak naik.
+  function status(actual, target, pace = 1, floor = false, improving = null) {
+    if (actual == null || target == null) return { level: 'na', pct: null, reason: null };
+    if (floor) return { level: actual >= target ? 'good' : (improving ? 'warn' : 'bad'), pct: null, reason: actual >= target ? null : (improving ? 'up' : null) };
     const pct = target ? 100 * actual / target : null;
-    const exp = Math.max(pace, 0.0001);
-    const r = actual / (target * exp);
-    const level = r >= 1 ? 'good' : r >= 0.8 ? 'warn' : 'bad';
-    return { level, pct };
+    const r = actual / (target * Math.max(pace, 0.0001));
+    if (r >= 1) return { level: 'good', pct, reason: null };
+    if (r >= 0.8) return { level: 'warn', pct, reason: 'near' };
+    if (improving) return { level: 'warn', pct, reason: 'up' };
+    return { level: 'bad', pct, reason: null };
   }
 
-  const API = { parseCSV, num, parseDate, parseDaily, parsePosts, parseLinktree, KEYS, loadAll, loadMonthPosts, monthsAvailable, social, contentStats, outletStats, monthlySeries, status, tierOf, ym, daysIn };
+  function prevYM(y, m, k = 1) { const d = new Date(y, m - 1 - k, 1); return [d.getFullYear(), d.getMonth() + 1]; }
+  const change = (a, b) => (a == null || b == null || b === 0) ? null : 100 * (a - b) / Math.abs(b);
+
+  // Ringkasan satu bulan dalam bentuk nilai "sebulan penuh" (dinormalkan ikut hari data) untuk perbandingan
+  function monthCore(ds, y, m) {
+    const s = social(ds, y, m), o = outletStats(ds, y, m), dim = daysIn(y, m);
+    const tt = s.tiktok, ttF = tt.days ? dim / tt.days : null;
+    const sumO = k => CFG.outlets.reduce((a, x) => a + (o.outlets[x][k] || 0), 0);
+    const leadDays = o.days.leads || 0, walkDays = o.days.walkin || 0;
+    const lt = o.linktree;
+    const v = {
+      views: tt.days ? tt.views : null, likes: tt.days ? tt.likes : null, comments: tt.days ? tt.comments : null,
+      shares: tt.days ? tt.shares : null, profileViews: tt.days ? tt.profileViews : null,
+      newFollowers: tt.days ? tt.newFollowers : null, netGrowth: tt.days ? tt.netGrowth : null,
+      uniqueClicks: lt ? lt.uniqueClicks ?? null : null, telegram: lt ? lt.telegram ?? null : null,
+      ctrProfile: lt ? lt.ctrProfile ?? null : null, ctrAction: lt ? lt.ctrAction ?? null : null,
+      wa: lt ? CFG.outlets.reduce((a, x) => a + (lt['wa_' + x] || 0), 0) : null,
+      leads: leadDays ? sumO('leads') : null, walkin: walkDays ? sumO('walkin') : null,
+    };
+    v.conversion = v.leads ? 100 * v.walkin / v.leads : null;
+    // faktor normalisasi (nisbah & data Linktree bulanan tak dinormalkan)
+    const f = {
+      views: ttF, likes: ttF, comments: ttF, shares: ttF, profileViews: ttF, newFollowers: ttF, netGrowth: ttF,
+      leads: leadDays ? dim / leadDays : null, walkin: walkDays ? dim / walkDays : null,
+    };
+    const norm = k => v[k] == null ? null : v[k] * (f[k] || 1);
+    return { v, norm, pace: { tt: tt.days ? Math.min(1, tt.days / dim) : 1, out: leadDays ? Math.min(1, leadDays / dim) : 1 }, days: { tt: tt.days, leads: leadDays }, dim };
+  }
+
+  const KPI_DEFS = [
+    { id: 'views', label: 'TikTok Views', target: T => T.tiktokViews, pace: 'tt' },
+    { id: 'likes', label: 'Likes', target: T => T.likes, pace: 'tt' },
+    { id: 'comments', label: 'Comments', target: T => T.comments, pace: 'tt' },
+    { id: 'shares', label: 'Shares', target: T => T.shares, pace: 'tt' },
+    { id: 'profileViews', label: 'Profile Views', target: T => T.profileViews, pace: 'tt' },
+    { id: 'newFollowers', label: 'New Followers', target: T => T.newFollowers, pace: 'tt' },
+    { id: 'netGrowth', label: 'Net Followers', target: T => T.netFollowersFloor, pace: 'tt', floor: true },
+    { id: 'uniqueClicks', label: 'Unique Linktree', target: T => T.uniqueLinktree },
+    { id: 'ctrProfile', label: 'CTR Profile → Linktree', target: T => T.ctrProfile, unit: '%' },
+    { id: 'ctrAction', label: 'CTR Action Linktree', target: T => T.ctrAction, unit: '%' },
+    { id: 'telegram', label: 'Klik Telegram', target: T => T.telegram },
+    { id: 'wa', label: 'Klik WhatsApp (4 outlet)', target: T => CFG.outlets.reduce((a, x) => a + T.outlet[x].wa, 0) },
+    { id: 'leads', label: 'Leads (4 outlet)', target: T => CFG.outlets.reduce((a, x) => a + T.outlet[x].leads, 0), pace: 'out' },
+    { id: 'walkin', label: 'Walk-in (4 outlet)', target: T => CFG.outlets.reduce((a, x) => a + T.outlet[x].walkin, 0), pace: 'out' },
+    { id: 'conversion', label: 'Conversion', target: T => T.conversion, unit: '%' },
+  ];
+
+  // Senarai KPI bulan ini lengkap dengan target, status, delta vs bulan lepas & tahun lepas
+  function kpis(ds, y, m) {
+    const cur = monthCore(ds, y, m), prev = monthCore(ds, ...prevYM(y, m)), ly = monthCore(ds, y - 1, m);
+    const out = {};
+    for (const d of KPI_DEFS) {
+      const actual = cur.v[d.id];
+      const pace = d.pace ? cur.pace[d.pace] : 1;
+      const now = cur.norm(d.id), p = prev.norm(d.id), l = ly.norm(d.id);
+      const mom = change(now, p), yoy = change(now, l);
+      const improving = now != null && p != null ? now > p : null;
+      const st = status(actual, d.target(CFG.targets), pace, d.floor, improving);
+      const ratio = d.floor || actual == null ? null : actual / (d.target(CFG.targets) * Math.max(pace, 0.0001));
+      out[d.id] = { ...d, target: d.target(CFG.targets), actual, pace, mom, yoy, prev: p, status: st, ratio, partial: pace < 1 };
+    }
+    return out;
+  }
+
+  // Funnel: Views → Profile → Linktree → WhatsApp → Leads → Walk-in
+  const FUNNEL = [
+    { id: 'views', label: 'TikTok Views' },
+    { id: 'profileViews', label: 'Profile Views' },
+    { id: 'uniqueClicks', label: 'Klik Linktree (unik)' },
+    { id: 'wa', label: 'Klik WhatsApp outlet' },
+    { id: 'leads', label: 'Leads' },
+    { id: 'walkin', label: 'Walk-in' },
+  ];
+  const STEP_NOTE = {
+    profileViews: 'penonton yang buka profile',
+    uniqueClicks: 'pelawat profile yang klik Linktree',
+    wa: 'pelawat Linktree yang klik WhatsApp outlet',
+    leads: 'leads berbanding klik WhatsApp (leads juga datang dari saluran lain)',
+    walkin: 'leads yang datang ke kedai',
+  };
+  function funnel(ds, y, m) {
+    const rates = (yy, mm) => {
+      const c = monthCore(ds, yy, mm).v;
+      return FUNNEL.map((st, i) => {
+        if (!i) return null;
+        const a = c[st.id], b = c[FUNNEL[i - 1].id];
+        return a != null && b ? 100 * a / b : null;
+      });
+    };
+    const cur = monthCore(ds, y, m).v;
+    const r = rates(y, m), rp = rates(...prevYM(y, m));
+    const hist = [1, 2, 3].map(k => rates(...prevYM(y, m, k)));
+    const stages = FUNNEL.map((st, i) => {
+      const h = hist.map(x => x[i]).filter(v => v != null);
+      const avg = h.length ? h.reduce((a, b) => a + b, 0) / h.length : null;
+      return { ...st, value: cur[st.id], rate: r[i], prevRate: rp[i], avg3: avg, vsAvg: i && r[i] != null && avg ? 100 * (r[i] - avg) / avg : null, note: STEP_NOTE[st.id] };
+    });
+    // titik paling lemah = kadar yang paling jatuh berbanding purata 3 bulan sebelum
+    const cands = stages.filter(s => s.vsAvg != null);
+    const weakest = cands.length ? cands.reduce((a, b) => (b.vsAvg < a.vsAvg ? b : a)) : null;
+    const strongest = cands.length ? cands.reduce((a, b) => (b.vsAvg > a.vsAvg ? b : a)) : null;
+    return { stages, weakest: weakest && weakest.vsAvg < 0 ? weakest : null, strongest: strongest && strongest.vsAvg > 0 ? strongest : null };
+  }
+
+  // Bilangan bulan berturut-turut (berakhir bulan ini) yang memenuhi syarat
+  function streak(ds, y, m, fn) {
+    let n = 0, yy = y, mm = m;
+    for (let i = 0; i < 24; i++) {
+      const c = monthCore(ds, yy, mm);
+      const pc = monthCore(ds, ...prevYM(yy, mm));
+      if (!fn(c, pc)) break;
+      n++; [yy, mm] = prevYM(yy, mm);
+    }
+    return n;
+  }
+
+  // 3 perkara bulan ini
+  function insights(ds, y, m) {
+    const K = kpis(ds, y, m);
+    const list = Object.values(K).filter(k => !k.floor && k.ratio != null);
+    const out = [];
+    if (list.length) {
+      const best = list.reduce((a, b) => (b.ratio > a.ratio ? b : a));
+      const worst = list.reduce((a, b) => (b.ratio < a.ratio ? b : a));
+      out.push({ kind: 'good', title: `Terbaik: ${best.label}`, text: `${Math.round(best.ratio * 100)}% daripada target${best.partial ? ' (ikut kadar hari)' : ''}${best.mom != null ? `, ${best.mom >= 0 ? 'naik' : 'turun'} ${Math.abs(best.mom).toFixed(0)}% vs bulan lepas` : ''}.` });
+      out.push({ kind: 'bad', title: `Paling jauh: ${worst.label}`, text: `Baru ${Math.round(worst.ratio * 100)}% daripada target${worst.mom != null ? `, ${worst.mom >= 0 ? 'naik' : 'turun'} ${Math.abs(worst.mom).toFixed(0)}% vs bulan lepas` : ''}.` });
+    }
+    const negNet = streak(ds, y, m, c => c.v.netGrowth != null && c.v.netGrowth < 0);
+    const downViews = streak(ds, y, m, (c, p) => c.norm('views') != null && p.norm('views') != null && c.norm('views') < p.norm('views'));
+    const upViews = streak(ds, y, m, (c, p) => c.norm('views') != null && p.norm('views') != null && c.norm('views') > p.norm('views'));
+    if (negNet >= 3) out.push({ kind: 'bad', title: 'Trend: followers menyusut', text: `Net followers negatif ${negNet} bulan berturut-turut (bulan ini ${Math.round(K.netGrowth.actual).toLocaleString('en-MY')}). Lebih ramai unfollow daripada follow baru.` });
+    else if (downViews >= 2) out.push({ kind: 'bad', title: 'Trend: views menurun', text: `TikTok views turun ${downViews} bulan berturut-turut.` });
+    else if (upViews >= 2) out.push({ kind: 'good', title: 'Trend: views meningkat', text: `TikTok views naik ${upViews} bulan berturut-turut.` });
+    else {
+      const f = funnel(ds, y, m);
+      if (f.weakest) out.push({ kind: 'bad', title: `Funnel: ${f.weakest.label}`, text: `Kadar ${f.weakest.rate.toFixed(1)}%, ${Math.abs(f.weakest.vsAvg).toFixed(0)}% lebih rendah dari purata 3 bulan.` });
+    }
+    return out.slice(0, 3);
+  }
+
+  const API = { kpis, funnel, insights, monthCore, prevYM, change, parseCSV, num, parseDate, parseDaily, parsePosts, parseLinktree, KEYS, loadAll, loadMonthPosts, monthsAvailable, social, contentStats, outletStats, monthlySeries, status, tierOf, ym, daysIn };
   root.KD = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
