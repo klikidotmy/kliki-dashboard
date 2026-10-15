@@ -5,7 +5,7 @@
   const MON = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const CACHE_KEY = 'kliki-dash-v1';
 
-  const state = { ds: null, month: null, tab: localGet('tab') || 'ringkasan', loading: false };
+  const state = { ds: null, month: null, picked: false, tab: localGet('tab') || 'ringkasan', loading: false };
 
   // ---------- helpers ----------
   function localGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -319,7 +319,7 @@
     if (!months.includes(cur)) months.push(cur);
     const sel = $('#month');
     sel.innerHTML = months.slice().reverse().map(k => `<option value="${k}">${monLabel(k)}</option>`).join('');
-    if (!state.month || !months.includes(state.month)) {
+    if (!state.picked || !months.includes(state.month)) {
       // lalai: bulan terkini yang ada data TikTok
       const withData = KD.monthsAvailable(state.ds);
       state.month = withData[withData.length - 1] || cur;
@@ -355,7 +355,7 @@
   }
 
   // ---------- events ----------
-  $('#month').addEventListener('change', e => { state.month = e.target.value; render(); scrollTo(0, 0); });
+  $('#month').addEventListener('change', e => { state.month = e.target.value; state.picked = true; render(); scrollTo(0, 0); });
   $('#refresh').addEventListener('click', () => { if (state.ds) state.ds.posts = {}; load(); });
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
     state.tab = b.dataset.tab; localSet('tab', state.tab); render(); scrollTo(0, 0);
