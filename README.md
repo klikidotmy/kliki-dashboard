@@ -31,10 +31,10 @@ Buka URL GitHub Pages di phone:
 
 ```
 index.html            shell app
-styles.css            gaya (Inter, biru KLIKI #046AD8, light/dark)
+styles.css            gaya (Inter, biru KLIKI #1565FF / #0A2E8A, light/dark, sidebar navy)
 js/config.js          ID sheet, gid tab, target
 js/data.js            fetch CSV + parse + kira KPI
-js/app.js             paparan 4 tab: Ringkasan, Content, Outlet, Trend
+js/app.js             paparan 6 tab: Overview, Funnel, Ringkasan, Content, Outlet, Trend
 sw.js                 service worker (buka laju, offline guna data terakhir)
 manifest.webmanifest  maklumat app untuk "Add to Home Screen"
 ```
