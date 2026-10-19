@@ -1,4 +1,4 @@
-/* KLIKI Marketing Dashboard — v9 (SaaS layout) */
+/* KLIKI Marketing Dashboard — v10 (struktur mesyuarat bulanan) */
 :root {
   color-scheme: light;
   --brand: #1565FF;
@@ -554,3 +554,70 @@ a.tc:hover { background: var(--surface-2); }
 .na-list li { counter-increment: na; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); }
 .na-list li::before { content: counter(na); width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #fff; background: var(--brand); }
 .card.next { background: linear-gradient(160deg, var(--brand-soft) 0%, var(--surface) 45%); }
+
+/* =========================================================
+   v10: MESYUARAT BULANAN (Overview syarikat, Content, Analisis)
+   ========================================================= */
+h2.sec { margin-top: 26px; }
+.ov-hello + h2.sec { margin-top: 4px; }
+.kc-grid.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 767.98px) { .kc-grid.g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kc-note { margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+
+.mc-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1279.98px) { .mc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 699.98px) { .mc-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+.mc-grid > .card { margin-top: 0; min-width: 0; display: flex; flex-direction: column; }
+.mcard .mc-v { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 14px 0 12px; }
+.mcard .mc-v .kc-v { margin: 0; }
+.mcard .mc-vs { font-size: 12px; color: var(--muted); }
+.mcard .mc-v .d { font-size: 12px; }
+.mcard .chart-cap { margin-top: auto; padding-top: 10px; }
+.mrows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-2); }
+.mrows li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-2); }
+.mrows li:last-child { border-bottom: 0; }
+.mrows li.sub { padding: 5px 0 5px 40px; }
+.mrows li.sub .mr-l { font-size: 12.5px; color: var(--text-2); font-weight: 500; }
+.mrows .pi { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 11px; color: #fff; }
+.pi.tt { background: #0B1530; } .pi.fb { background: #1877F2; } .pi.ig { background: linear-gradient(135deg, #F58529, #DD2A7B 55%, #8134AF); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pi.tt { background: #2A3550; } }
+:root[data-theme="dark"] .pi.tt { background: #2A3550; }
+.mrows li:not(:has(.pi)):not(.sub) { grid-template-columns: minmax(0, 1fr) auto; }
+.mrows li.sub { grid-template-columns: minmax(0, 1fr) auto; }
+.mr-l { font-size: 13.5px; font-weight: 600; min-width: 0; }
+.mr-l .tgt { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.mr-v { text-align: right; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.mr-v small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.mr-v small .d { font-size: 11px; }
+li.lv-good .mr-v small { color: var(--good); } li.lv-warn .mr-v small { color: var(--warn); } li.lv-bad .mr-v small { color: var(--bad); }
+
+.link-btn { border: 0; background: var(--brand-soft); color: var(--brand-ink); font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.link-btn:hover { background: var(--brand); color: #fff; }
+.sc-nums, .sc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sc-nums > div, .sc-tiles > div { border-radius: 12px; padding: 12px 14px; background: var(--surface-2); }
+.sc-nums b, .sc-tiles b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.sc-nums span, .sc-tiles span { font-size: 12px; color: var(--text-2); font-weight: 600; }
+.sc-nums .good b, .sc-tiles .good b { color: var(--good); } .sc-nums .bad b, .sc-tiles .bad b { color: var(--bad); } .sc-nums .na b, .sc-tiles .na b { color: var(--muted); }
+.sc-tiles { margin-bottom: var(--gap); }
+.sc-tiles > div { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); padding: 16px 18px; }
+.sc-tiles b { font-size: 32px; }
+.sc-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin: 14px 0 4px; background: var(--surface-2); gap: 2px; }
+.sc-bar i { display: block; } .sc-bar i.good { background: var(--good); } .sc-bar i.bad { background: var(--bad); } .sc-bar i.na { background: var(--line); }
+.sc-h { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.sc-list { list-style: none; margin: 0; padding: 0; }
+.sc-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: 13.5px; }
+.sc-list li:last-child { border-bottom: 0; }
+.sc-list b { color: var(--bad); white-space: nowrap; } .sc-list b.up { color: var(--good); } .sc-list b.down { color: var(--bad); }
+.pair.tight { gap: 4px 24px; }
+@media (min-width: 900px) { .pair.wide { grid-template-columns: minmax(0, 1fr); } .pair.wide .list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .pair.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pair.wide .list { grid-template-columns: minmax(0, 1fr); } }
+.pair.wide { margin-top: 12px; }
+.pair.tight .sc-h { margin-top: 0; }
+.tva td small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.na-why { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.na-why li { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.na-why b { font-size: 13.5px; font-weight: 600; } .na-why p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-2); }
+.ptbl .pcell { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.ptbl .pi { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font-weight: 800; font-size: 10px; color: #fff; }
+.ptbl td .d { display: block; font-size: 11px; }
+.ptbl tr.tot td { font-weight: 700; border-top: 2px solid var(--line); }

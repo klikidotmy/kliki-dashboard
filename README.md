@@ -21,6 +21,15 @@ Semua dalam `js/config.js`:
 
 Semua formula KPI ada dalam `js/data.js`. `js/app.js` hanya paparan.
 
+## Struktur tab (mesyuarat bulanan)
+
+- **Overview: Company Marketing** (halaman utama): content output (Total / POV Customer / Strategic), Total Views, Total Engagement, Follower Growth merentas TikTok, Facebook, Instagram, WhatsApp Clicks & Leads, status KPI dan highlights. Tiada jadual outlet.
+- **Content Performance**: output vs target, prestasi platform, trend views bulanan, top content, prestasi ikut TYPE / kategori / bucket, funnel TOFU-MOFU-BOFU (muncul automatik bila tab per-post ada lajur bernilai TOFU/MOFU/BOFU).
+- **Marketing Analysis**: KPI capai / gagal / tiada data, perubahan vs bulan lepas, insights.
+- **Funnel, Outlet, Trend**: drill-down.
+
+Peraturan data: sel kosong = tiada data (bukan 0). Views per-post (tab bulanan) tidak dicampur dengan views Insight akaun. Engagement FB/IG = lajur Interactions (tiada pecahan like/comment/share). Net follower hanya untuk TikTok (FB/IG tiada data unfollow).
+
 ## Pasang di phone
 
 Buka URL GitHub Pages di phone:
@@ -34,7 +43,7 @@ index.html            shell app
 styles.css            gaya (Inter, biru KLIKI #1565FF / #0A2E8A, light/dark, sidebar navy)
 js/config.js          ID sheet, gid tab, target
 js/data.js            fetch CSV + parse + kira KPI
-js/app.js             paparan 6 tab: Overview, Funnel, Ringkasan, Content, Outlet, Trend
+js/app.js             paparan 6 tab: Overview, Content, Analisis (mesyuarat bulanan) + Funnel, Outlet, Trend (drill-down)
 sw.js                 service worker (buka laju, offline guna data terakhir)
 manifest.webmanifest  maklumat app untuk "Add to Home Screen"
 ```

@@ -112,7 +112,9 @@
       const type = texts.length === 2 ? texts[0] : '';
       const sub = texts.length >= 1 ? texts[texts.length - 1] : '';
       const url = (r.slice(0, 10).find(c => /^https?:\/\//i.test((c || '').trim())) || '').trim();
-      posts.push({ date, outlet, kategori, type, sub: normSub(sub), views, url });
+      // Peringkat funnel hanya jika sheet ada lajur bernilai TOFU/MOFU/BOFU (tiada tekaan dari TYPE)
+      const fc = r.slice(3, 12).find(c => /^\s*(TOFU|MOFU|BOFU)\s*$/i.test(c || ''));
+      posts.push({ date, outlet, kategori, type, sub: normSub(sub), views, url, funnel: fc ? fc.trim().toUpperCase() : '' });
     }
     return posts;
   }
@@ -245,7 +247,16 @@
     const tt = (ds.tiktok || []).filter(f).filter(r => r.views != null);
     const fb = (ds.facebook || []).filter(f).filter(r => r.views != null);
     const ig = (ds.instagram || []).filter(f).filter(r => r.views != null);
-    const agg = (rows, keys) => Object.fromEntries(keys.map(k => [k, sum(rows, r => r[k])]));
+    // Sel kosong = tiada data, bukan sifar: kunci yang langsung tiada nilai jadi null
+    const agg = (rows, keys) => {
+      const o = { daysOf: {} };
+      for (const k of keys) {
+        const has = rows.filter(r => r[k] != null);
+        o[k] = has.length ? sum(has, r => r[k]) : null;
+        o.daysOf[k] = has.length;
+      }
+      return o;
+    };
     const tiktok = agg(tt, KEYS.tiktok);
     tiktok.days = tt.length;
     tiktok.daily = tt.map(r => ({ d: r.date.d, views: r.views, net: r.netGrowth }));
@@ -260,7 +271,9 @@
     const views = sum(posts, p => p.views);
     const hasType = posts.some(p => p.type);
     const pov = posts.filter(p => /pov/i.test(p.type)).length;
-    const strategicPosts = hasType ? posts.filter(p => !/pov/i.test(p.type)) : [];
+    // Post tanpa TYPE tidak dikira sebagai Strategic (dilaporkan berasingan)
+    const strategicPosts = hasType ? posts.filter(p => p.type && !/pov/i.test(p.type)) : [];
+    const noType = hasType ? posts.filter(p => !p.type).length : 0;
     const typeCount = {};
     for (const k of Object.keys(T.strategicType)) typeCount[k] = strategicPosts.filter(p => p.type.toLowerCase() === k.toLowerCase()).length;
     const subjCount = {};
@@ -284,8 +297,16 @@
     for (const p of posts) { const t = tierOf(p.views); tiers[t] = (tiers[t] || 0) + 1; }
     const kategori = {};
     for (const p of posts) { const k = kategori[p.kategori] || (kategori[p.kategori] = { posts: 0, views: 0 }); k.posts++; k.views += p.views || 0; }
+    const group = keyFn => {
+      const g = {};
+      for (const p of posts) { const k = keyFn(p); if (!k) continue; const o = g[k] || (g[k] = { posts: 0, views: 0, top: null }); o.posts++; o.views += p.views || 0; if (!o.top || (p.views || 0) > (o.top.views || 0)) o.top = p; }
+      return g;
+    };
+    const byType = hasType ? group(p => p.type) : {};
+    const hasFunnel = posts.some(p => p.funnel);
+    const byFunnel = hasFunnel ? group(p => p.funnel) : {};
     const top = [...posts].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
-    return { total, views, avg: total ? views / total : 0, hasType, pov, strategic: strategicPosts.length, typeCount, subjCount, bucketStats, outlets, tiers, kategori, top };
+    return { total, views, avg: total ? views / total : 0, hasType, pov, strategic: strategicPosts.length, noType, typeCount, subjCount, bucketStats, outlets, tiers, kategori, byType, hasFunnel, byFunnel, top };
   }
 
   function tierOf(v) { for (const t of CFG.tiers) if ((v || 0) >= t.min) return t.name; return 'Bronze'; }
@@ -367,7 +388,9 @@
       newFollowers: tt.days ? tt.newFollowers : null, netGrowth: tt.days ? tt.netGrowth : null,
       uniqueClicks: lt ? lt.uniqueClicks ?? null : null, telegram: lt ? lt.telegram ?? null : null,
       ctrProfile: lt ? lt.ctrProfile ?? null : null, ctrAction: lt ? lt.ctrAction ?? null : null,
-      wa: lt ? CFG.outlets.reduce((a, x) => a + (lt['wa_' + x] || 0), 0) : null,
+      // LINKTREE diisi sebulan sekali: jika tiada satu pun nilai WA outlet, kira 'tiada data' (bukan 0)
+      wa: lt && CFG.outlets.some(x => lt['wa_' + x] != null) ? CFG.outlets.reduce((a, x) => a + (lt['wa_' + x] || 0), 0) : null,
+      waOnline: lt ? lt.wa_Online ?? null : null, waBuyback: lt ? lt.wa_Buyback ?? null : null,
       leads: leadDays ? sumO('leads') : null, walkin: walkDays ? sumO('walkin') : null,
     };
     v.conversion = v.leads ? 100 * v.walkin / v.leads : null;
@@ -484,7 +507,7 @@
       // paling jauh: jurang × pemberat, supaya Leads 60% lebih penting dari Comments 26%
       const gap = k => Math.max(0, 1 - k.ratio) * (W[k.id] || 1);
       const worst = list.reduce((a, b) => (gap(b) > gap(a) ? b : a));
-      out.push({ kind: 'good', title: best.label, chip: `${Math.round(best.ratio * 100)}%`, text: `${Math.round(best.ratio * 100)}% daripada target${best.partial ? ' (ikut kadar hari)' : ''}${trend(best)}.` });
+      out.push({ kind: 'good', title: best.ratio >= 1 ? best.label : `Paling hampir target: ${best.label}`, chip: `${Math.round(best.ratio * 100)}%`, text: `${Math.round(best.ratio * 100)}% daripada target${best.partial ? ' (ikut kadar hari)' : ''}${trend(best)}.` });
       if (gap(worst) > 0) out.push({ kind: 'bad', title: worst.label, chip: `${Math.round(worst.ratio * 100)}%`, text: `Baru ${Math.round(worst.ratio * 100)}% daripada target ${Math.round(worst.target).toLocaleString('en-MY')}${trend(worst)}.` });
     }
     const negNet = streak(ds, y, m, c => c.v.netGrowth != null && c.v.netGrowth < 0);
@@ -500,7 +523,83 @@
     return out.slice(0, 3);
   }
 
-  const API = { kpis, funnel, insights, monthCore, prevYM, change, parseCSV, num, parseDate, parseDaily, parsePosts, parseLinktree, KEYS, loadAll, loadMonthPosts, monthsAvailable, social, contentStats, outletStats, monthlySeries, status, tierOf, ym, daysIn };
+  // ---------- Peringkat syarikat (Overview) ----------
+  // Views/engagement/followers dari Insight akaun setiap platform (bukan jumlah view per-post, elak double count).
+  // TikTok: Likes + Comments + Shares. FB/IG: lajur Interactions (sheet tak pecahkan like/comment/share Meta).
+  // Followers: TikTok ada new/lost/net; FB/IG hanya follow baru (tiada data unfollow).
+  const PLATFORMS = [['tiktok', 'TikTok'], ['facebook', 'Facebook'], ['instagram', 'Instagram']];
+  // kunci sumber untuk kiraan hari data setiap metrik
+  const SRC_KEY = {
+    tiktok: { views: 'views', reach: 'reach', engagement: 'likes', newFollowers: 'newFollowers', netFollowers: 'netGrowth', lostFollowers: 'lostFollowers', profileViews: 'profileViews' },
+    meta: { views: 'views', reach: 'reach', engagement: 'interactions', newFollowers: 'follow' },
+  };
+  function company(ds, y, m) {
+    const s = social(ds, y, m), dim = daysIn(y, m);
+    const plats = PLATFORMS.map(([id, name]) => {
+      const c = s[id], has = c.days > 0, tt = id === 'tiktok';
+      const eng = !has ? null : tt
+        ? ([c.likes, c.comments, c.shares].every(v => v == null) ? null : (c.likes || 0) + (c.comments || 0) + (c.shares || 0))
+        : c.interactions;
+      const sk = SRC_KEY[tt ? 'tiktok' : 'meta'];
+      return {
+        id, name, days: c.days,
+        daysOf: Object.fromEntries(Object.entries(sk).map(([k, src]) => [k, has ? c.daysOf[src] : 0])),
+        views: has ? c.views : null, reach: has ? c.reach : null, engagement: eng,
+        likes: tt && has ? c.likes : null, comments: tt && has ? c.comments : null, shares: tt && has ? c.shares : null,
+        newFollowers: !has ? null : tt ? c.newFollowers : c.follow,
+        lostFollowers: tt && has ? c.lostFollowers : null,
+        netFollowers: tt && has ? c.netGrowth : null,
+        profileViews: tt && has ? c.profileViews : null,
+      };
+    });
+    const tot = k => { const v = plats.filter(p => p[k] != null); return v.length ? sum(v, p => p[k]) : null; };
+    return { plats, dim, views: tot('views'), engagement: tot('engagement'), newFollowers: tot('newFollowers'), reach: tot('reach') };
+  }
+
+  // Perubahan vs bulan lepas, dinormalkan ikut hari data (bulan separa boleh dibanding dengan bulan penuh)
+  function companyCompare(ds, y, m) {
+    const cur = company(ds, y, m), [py, pm] = prevYM(y, m), prev = company(ds, py, pm);
+    const nz = (p, k, dim) => { const d = p.daysOf[k]; return p[k] == null || !d ? null : p[k] * dim / d; };
+    const ch = (k, id) => {
+      if (id) return change(nz(cur.plats.find(p => p.id === id), k, cur.dim), nz(prev.plats.find(p => p.id === id), k, prev.dim));
+      // jumlah: hanya platform yang ada data di kedua-dua bulan
+      let a = 0, b = 0, any = false;
+      cur.plats.forEach((p, i) => { const x = nz(p, k, cur.dim), z = nz(prev.plats[i], k, prev.dim); if (x != null && z != null) { a += x; b += z; any = true; } });
+      return any ? change(a, b) : null;
+    };
+    return { cur, prev, ch };
+  }
+
+  // Kad skor semua KPI bertarget (content dari tab per-post + TikTok, Linktree, Leads)
+  // c / pc = contentStats bulan ini / bulan lepas (null jika tab per-post tiada); cPace = pecahan bulan berlalu
+  function scorecard(ds, y, m, c, pc, cPace = 1) {
+    const K = kpis(ds, y, m), T = CFG.targets;
+    const GROUP = { views: 'TikTok', likes: 'TikTok', comments: 'TikTok', shares: 'TikTok', profileViews: 'TikTok', newFollowers: 'TikTok', netGrowth: 'TikTok',
+      uniqueClicks: 'Linktree & WhatsApp', ctrProfile: 'Linktree & WhatsApp', ctrAction: 'Linktree & WhatsApp', telegram: 'Linktree & WhatsApp', wa: 'Linktree & WhatsApp',
+      leads: 'Leads & Walk-in', walkin: 'Leads & Walk-in', conversion: 'Leads & Walk-in' };
+    const list = Object.values(K).map(k => ({ ...k, group: GROUP[k.id] }));
+    const ck = (id, label, a, prevA, target) => {
+      const nowN = a == null ? null : a / Math.max(cPace, 0.0001);
+      const improving = nowN != null && prevA != null ? nowN > prevA : null;
+      return { id, label, group: 'Content', actual: a, target, pace: cPace, partial: cPace < 1, status: status(a, target, cPace, false, improving),
+        nowN, prev: prevA, mom: change(nowN, prevA), ratio: a == null ? null : a / (target * Math.max(cPace, 0.0001)) };
+    };
+    if (c && c.total) {
+      const p = pc && pc.total ? pc : null;
+      list.unshift(
+        ck('totalContent', 'Total Posts', c.total, p ? p.total : null, T.totalContent),
+        ...(c.hasType ? [ck('pov', 'POV Customer', c.pov, p && p.hasType ? p.pov : null, T.povCustomer), ck('strategic', 'Strategic Posts', c.strategic, p && p.hasType ? p.strategic : null, T.strategic)] : []),
+        ck('postViews', 'Views content (jumlah semua post)', c.views, p ? p.views : null, T.viewsPerPost),
+        ...Object.entries(c.bucketStats).map(([k, b]) => ck('bucket_' + k, 'Views bucket ' + k, b.views, p ? p.bucketStats[k].views : null, b.target)),
+      );
+    }
+    const res = { hit: [], miss: [], na: [], list };
+    for (const k of list) (k.status.level === 'good' ? res.hit : k.status.level === 'na' ? res.na : res.miss).push(k);
+    res.miss.sort((a, b) => (a.ratio ?? 1) - (b.ratio ?? 1)); // jurang terbesar dulu
+    return res;
+  }
+
+  const API = { company, companyCompare, scorecard, kpis, funnel, insights, monthCore, prevYM, change, parseCSV, num, parseDate, parseDaily, parsePosts, parseLinktree, KEYS, loadAll, loadMonthPosts, monthsAvailable, social, contentStats, outletStats, monthlySeries, status, tierOf, ym, daysIn };
   root.KD = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

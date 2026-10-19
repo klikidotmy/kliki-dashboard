@@ -4,8 +4,8 @@
   const $ = s => document.querySelector(s);
   const MON = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const CACHE_KEY = 'kliki-dash-v1';
-  const TABS = ['overview', 'funnel', 'ringkasan', 'content', 'outlet', 'trend'];
-  const TITLES = { overview: 'Overview', funnel: 'Aliran Pelanggan', ringkasan: 'Ringkasan KPI', content: 'Prestasi Content', outlet: 'Prestasi Outlet', trend: 'Trend Bulanan' };
+  const TABS = ['overview', 'content', 'analisis', 'funnel', 'outlet', 'trend'];
+  const TITLES = { overview: 'Overview: Company Marketing', content: 'Content Performance', analisis: 'Marketing Analysis', funnel: 'Aliran Pelanggan', outlet: 'Prestasi Outlet', trend: 'Trend Bulanan' };
 
   const savedTab = localGet('tab');
   const state = { ds: null, month: null, picked: false, tab: TABS.includes(savedTab) ? savedTab : 'overview', loading: false };
@@ -222,93 +222,6 @@
     return `<div class="fl-grid"><div class="fl-side">${ib ? `<h2 class="fl-h">Sorotan bulan ini</h2>${ib}` : ''}${act}</div><div class="fl-main">${h}</div></div>`;
   }
 
-  function viewRingkasan(key) {
-    const [y, m] = parseKey(key);
-    const K = KD.kpis(state.ds, y, m);
-    const s = KD.social(state.ds, y, m), ps = KD.social(state.ds, ...KD.prevYM(y, m));
-    const tt = s.tiktok;
-    let h = '';
-    if (tt.days) {
-      const daily = T.tiktokViews / s.daysInMonth;
-      const chart = barChart(tt.daily.map(d => ({ label: d.d, value: d.views, tip: `${d.d} ${MON[m - 1]}: ${fmt(d.views)} views` })), { aria: 'Views TikTok harian', labelEvery: 5, h: 120, target: daily })
-        + `<div class="chart-cap">Views harian · garis putus = kadar sasaran ${fmt(daily)}/hari · ${tt.days}/${s.daysInMonth} hari data</div>`;
-      h += `<div style="margin-top:10px">${kpiCard(K.views, { hero: true, extra: chart })}</div>`;
-    } else h += `<div class="card empty" style="margin-top:10px">Tiada data TikTok Insight untuk ${monLabel(key)} lagi.</div>`;
-
-    const grid = ids => kpiList(ids.map(id => K[id]));
-    if (tt.days) h += `<h2>TikTok engagement</h2>` + grid(['likes', 'comments', 'shares', 'profileViews', 'newFollowers', 'netGrowth']);
-    h += `<h2>Traffic Linktree</h2>` + (K.uniqueClicks.actual != null ? grid(['uniqueClicks', 'ctrProfile', 'ctrAction', 'telegram']) : `<div class="card empty">Tiada data LINKTREE untuk bulan ini.</div>`);
-    h += `<h2>Jualan (4 outlet)</h2>` + grid(['wa', 'leads', 'walkin', 'conversion']);
-
-    h += `<h2>Facebook & Instagram</h2>`;
-    const meta = (name, cur, prev) => {
-      if (!cur.days) return `<div class="card"><b>${name}</b><div class="empty">Tiada data bulan ini.</div></div>`;
-      const row = (l, k) => {
-        const n = cur[k] * (s.daysInMonth / cur.days), p = prev.days ? prev[k] * (daysIn(...KD.prevYM(y, m)) / prev.days) : null;
-        return `<tr><td>${l}</td><td><b>${fmt(cur[k])}</b></td><td>${delta(KD.change(n, p), '') || '—'}</td></tr>`;
-      };
-      return `<div class="card"><div class="row"><b>${name}</b><span class="sub">${cur.days} hari data</span></div>
-        <table><thead><tr><th></th><th>Bulan ini</th><th>vs bln lepas</th></tr></thead><tbody>${row('Views', 'views')}${row('Reach', 'reach')}${row('Interactions', 'interactions')}${row('Visit', 'visit')}${row('Follow baru', 'follow')}</tbody></table></div>`;
-    };
-    h += `<div class="pair">${meta('Facebook', s.facebook, ps.facebook) + meta('Instagram', s.instagram, ps.instagram)}</div>`;
-    return h;
-  }
-
-  async function viewContent(key) {
-    const [y, m] = parseKey(key);
-    const res = await KD.loadMonthPosts(state.ds, y, m);
-    persist();
-    if (res.error) return `<div class="card empty">Tak dapat baca tab per-post untuk ${monLabel(key)}: ${esc(res.error)}</div>`;
-    const c = KD.contentStats(res.posts);
-    if (!c.total) return `<div class="card empty">Belum ada post direkod untuk ${monLabel(key)}.</div>`;
-    const pace = isCurrent(key) ? new Date().getDate() / daysIn(y, m) : 1;
-    const mk = (label, actual, target) => ({ label, actual, target, pace, partial: pace < 1, status: KD.status(actual, target, pace) });
-    let h = res.warning ? `<div class="warn-box">⚠ ${esc(res.warning)}</div>` : '';
-    const top = [mk('Total Content', c.total, T.totalContent), mk('Views per Post (jumlah)', c.views, T.viewsPerPost)];
-    if (c.hasType) top.push(mk('POV Customer', c.pov, T.povCustomer), mk('Strategic', c.strategic, T.strategic));
-    h += `<div style="margin-top:10px">${kpiList(top)}</div>`;
-    if (c.hasType) {
-      const mix = (title, counts, tg) => `<div class="card"><b>${title}</b><table><thead><tr><th></th><th>Post</th><th>Target</th><th>Status</th></tr></thead><tbody>${Object.keys(tg).map(k => {
-        const st = KD.status(counts[k], tg[k], pace);
-        return `<tr><td>${esc(k)}</td><td><b>${counts[k]}</b></td><td>${tg[k]}</td><td><span class="st ${st.level}">${iconOf(st)}</span></td></tr>`;
-      }).join('')}</tbody></table></div>`;
-      h += `<h2>Strategic mix</h2><div class="pair">` + mix('Jenis', c.typeCount, T.strategicType) + mix('Subjek', c.subjCount, T.strategicSubject) + `</div>`;
-    } else h += `<div class="chart-cap" style="margin-top:8px">Lajur TYPE (POV Customer / Strategic) bermula dari tab SEPT'26.</div>`;
-
-    h += `<h2>Views ikut bucket <span class="note">· bebas, tak dijumlahkan</span></h2><div class="card"><div class="list">`;
-    for (const [k, b] of Object.entries(c.bucketStats)) {
-      const st = KD.status(b.views, b.target, pace);
-      h += `<div class="li"><div class="top-row"><span class="name"><span class="st ${st.level}">${iconOf(st)}</span> ${esc(k)}</span>
-        <span class="nums"><b>${fmt(b.views)}</b> / ${fmt(b.target)} · ${b.posts} post</span></div>${bar(b.views, b.target, st, pace)}</div>`;
-    }
-    h += `</div></div>`;
-
-    const order = ['KUL', 'AOR', 'SP', 'PDG', 'HQ', 'REPOST'];
-    const rank = o => order.indexOf(o) < 0 ? 99 : order.indexOf(o);
-    h += `<h2>Ikut outlet</h2><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Post</th><th>Views</th><th>Purata</th><th>Gold+</th></tr></thead><tbody>`;
-    for (const o of Object.keys(c.outlets).sort((a, b) => rank(a) - rank(b))) {
-      const v = c.outlets[o], gold = (v.tiers.Gold || 0) + (v.tiers.Diamond || 0);
-      h += `<tr><td>${esc(CFG.outletNames[o] || o)}</td><td>${v.posts}</td><td><b>${fmt(v.views)}</b></td><td>${fmt(v.views / v.posts)}</td><td>${gold}${v.tiers.Diamond ? ' 💎' : ''}</td></tr>`;
-    }
-    h += `</tbody></table></div><div class="chart-cap">Diamond ≥ 1M · Gold ≥ 300K · Silver ≥ 100K. Jumlah: ${Object.entries(c.tiers).map(([k, v]) => `${k} ${v}`).join(' · ')}</div></div>`;
-
-    h += `<h2>Ikut kategori</h2><div class="card"><table><thead><tr><th>Kategori</th><th>Post</th><th>Views</th><th>Purata</th></tr></thead><tbody>`;
-    for (const [k, v] of Object.entries(c.kategori).sort((a, b) => b[1].views - a[1].views))
-      h += `<tr><td>${esc(k)}</td><td>${v.posts}</td><td><b>${fmt(v.views)}</b></td><td>${fmt(v.views / v.posts)}</td></tr>`;
-    h += `</tbody></table></div>`;
-
-    const hasUrl = c.top.some(p => p.url);
-    h += `<h2>Top 5 post</h2><div class="card">`;
-    for (const p of c.top) {
-      const d = p.date ? `${p.date.d}/${p.date.m}` : '';
-      const meta = `${esc(d)} · ${esc(CFG.outletNames[p.outlet] || p.outlet)} · ${esc(p.kategori)}${p.sub ? ' · ' + esc(p.sub) : ''}${p.type ? ' · ' + esc(p.type) : ''}`;
-      const inner = `<span class="meta">${meta}</span><span class="v">${fmt(p.views)}${p.url ? ' <span class="go" aria-hidden="true">▶</span>' : ''}</span>`;
-      h += p.url ? `<a class="top-post" href="${esc(p.url)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="top-post">${inner}</div>`;
-    }
-    h += `</div><div class="chart-cap">${hasUrl ? 'Ketik post untuk buka video.' : 'Tambah link video TikTok dalam lajur H tab bulanan supaya post boleh diketik terus ke video.'} Purata views/post: ${fmt(c.avg)}.</div>`;
-    return h;
-  }
-
   // Skor outlet (dikongsi tab Outlet & Overview — logik sama seperti asal)
   const OUTLET_ROWS = [
     ['RAW Video Phone', 'rawPhone'], ['RAW Video Repair', 'rawRepair'],
@@ -347,8 +260,9 @@
     return { o, live, cards };
   }
 
-  function viewOutlet(key) {
+  async function viewOutlet(key) {
     const { o, live, cards } = outletScores(key);
+    const { c } = await monthContent(key);
 
     let h = `<h2>Skor outlet <span class="note">· KPI capai daripada jumlah</span></h2><div class="ostrip">${cards.map(c => `
       <a class="otile" href="#o-${c.x}"><span class="on">${CFG.outletNames[c.x]}</span>
@@ -361,6 +275,16 @@
       <summary><span class="row"><b class="oname">${CFG.outletNames[c.x]}</b><span class="score ${c.lvl}">${c.hit}/${c.total} capai</span></span>
       ${c.miss.length ? `<span class="sub">Merah: ${c.miss.join(', ')}</span>` : ''}</summary>
       <ul class="olist">${c.list}</ul></details>`).join('') + `</div>`;
+    if (c) {
+      const order = ['KUL', 'AOR', 'SP', 'PDG', 'HQ', 'REPOST'];
+      const rank = x => order.indexOf(x) < 0 ? 99 : order.indexOf(x);
+      h += `<h2>Content ikut outlet <span class="note">· tab per-post</span></h2><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Post</th><th>Views</th><th>Purata</th><th>Gold+</th></tr></thead><tbody>`;
+      for (const x of Object.keys(c.outlets).sort((a, b) => rank(a) - rank(b))) {
+        const v = c.outlets[x], gold = (v.tiers.Gold || 0) + (v.tiers.Diamond || 0);
+        h += `<tr><td>${esc(CFG.outletNames[x] || x)}</td><td>${v.posts}</td><td><b>${fmt(v.views)}</b></td><td>${fmt(v.views / v.posts)}</td><td>${gold}${v.tiers.Diamond ? ' 💎' : ''}</td></tr>`;
+      }
+      h += `</tbody></table></div></div>`;
+    }
     h += `<div class="chart-cap">Ketik outlet untuk butiran (outlet paling lemah dibuka dulu). ↗ = bawah target tapi naik vs bulan lepas. Conversion = Walk-in ÷ Leads. Klik WhatsApp/Lokasi dari LINKTREE (${CFG.linktree.year}). ${live ? `Bulan semasa dinilai ikut kadar (${o.days.leads} hari data leads).` : ''}</div>`;
     return h;
   }
@@ -396,187 +320,314 @@
   }
 
   // =========================================================
-  // OVERVIEW — gabungan data sedia ada (KD.kpis, KD.social, KD.funnel,
-  // KD.insights, KD.contentStats, skor outlet). Tiada formula KPI baru,
-  // kecuali Engagement = Likes + Comments + Shares (target = jumlah 3 target rasmi).
+  // DATA BULAN (dikongsi Overview, Content, Analisis, Outlet)
   // =========================================================
-  const IC = {
-    posts: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 9v6l5-3z"/>',
-    views: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-    eng: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
-    wa: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 9.5c.3 2 2.5 4.2 4.5 4.5"/>',
-    walk: '<path d="M4 9l1.5-5h13L20 9M4 9h16M5 9v11h14V9M10 20v-5h4v5"/>',
-  };
-
-  function ovCard(o) {
-    const { label, sub, icon, actual, target, pace = 1, st, unit, d = '', foot = '', hero } = o;
-    const live = pace < 1;
-    const pct = target && actual != null ? 100 * actual / target : null;
-    return `<div class="kc${hero ? ' hero-kc' : ''}">
-      <div class="kc-h"><span class="kc-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[icon]}</svg></span>
-        <span class="kc-l">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>
-      <div class="kc-v">${actual == null ? '—' : fmtVal(actual, unit)}</div>
-      <div class="kc-tg">Target <b>${fmtVal(target, unit)}</b></div>
-      <div class="kc-ach"><span>Achievement</span><b>${pct == null ? '—' : Math.round(pct) + '%'}</b></div>
-      ${actual == null ? '<div class="prog"><i style="width:0"></i></div>' : bar(actual, target, st, pace)}
-      <div class="kc-f"><span class="chip ${st.level}">${iconOf(st)} ${statusWord(st, live)}</span>${d || foot}</div>
-    </div>`;
-  }
-
-  async function viewOverview(key) {
-    const [y, m] = parseKey(key);
-    const live = isCurrent(key), dim = daysIn(y, m), today = new Date().getDate();
-    const K = KD.kpis(state.ds, y, m);
-    const [py, pm] = KD.prevYM(y, m), prevLbl = monShort(py, pm);
-    const s = KD.social(state.ds, y, m), ps = KD.social(state.ds, py, pm);
-    const res = await KD.loadMonthPosts(state.ds, y, m);
+  // Muat tab per-post bulan ini + bulan lepas (untuk perbandingan MoM content)
+  async function monthContent(key) {
+    const [y, m] = parseKey(key), [py, pm] = KD.prevYM(y, m);
+    const [res, pres] = await Promise.all([KD.loadMonthPosts(state.ds, y, m), KD.loadMonthPosts(state.ds, py, pm)]);
     persist();
     const c = res.error ? null : KD.contentStats(res.posts);
-    const hasPosts = !!(c && c.total);
-    const cPace = live ? today / dim : 1;
-    const cmpD = k => cmp(k, k.prev, 'vs ' + prevLbl);
+    const pc = pres.error ? null : KD.contentStats(pres.posts);
+    const live = isCurrent(key);
+    const cPace = live ? new Date().getDate() / daysIn(y, m) : 1;
+    return { res, c: c && c.total ? c : null, pc: pc && pc.total ? pc : null, cPace, live };
+  }
 
-    // ---- KPI cards ----
-    const postSt = KD.status(hasPosts ? c.total : null, T.totalContent, cPace);
-    const eIds = ['likes', 'comments', 'shares'];
-    const hasTT = s.tiktok.days > 0;
-    const eAct = hasTT ? eIds.reduce((a, k) => a + (K[k].actual || 0), 0) : null;
-    const eTg = eIds.reduce((a, k) => a + K[k].target, 0);
-    const eNow = K.likes.nowN == null ? null : eIds.reduce((a, k) => a + (K[k].nowN || 0), 0);
-    const ePrev = K.likes.prev == null ? null : eIds.reduce((a, k) => a + (K[k].prev || 0), 0);
-    const eSt = KD.status(eAct, eTg, K.likes.pace, false, eNow != null && ePrev != null ? eNow > ePrev : null);
-    const kd = (k, extra) => ({ label: k.label, actual: k.actual, target: k.target, pace: k.pace, st: k.status, unit: k.unit, d: cmpD(k), ...extra });
+  const IC = {
+    posts: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 9v6l5-3z"/>',
+    pov: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+    strat: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/>',
+    views: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eng: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    fol: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5M17 8v6M14 11h6"/>',
+    wa: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 9.5c.3 2 2.5 4.2 4.5 4.5"/>',
+  };
+  const icon = k => `<span class="kc-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></span>`;
+  const PLAT_AB = { tiktok: ['tt', 'T'], facebook: ['fb', 'f'], instagram: ['ig', 'IG'] };
+  const platIc = id => `<span class="pi ${PLAT_AB[id][0]}">${PLAT_AB[id][1]}</span>`;
 
-    let h = `<div class="ov-hello"><p>Prestasi marketing <b>${monLabel(key)}</b>${live ? ` · hari ${today} daripada ${dim}, status dinilai ikut kadar hari` : ''}</p>
+  // Kad KPI bertarget (content output)
+  function ovCard(k, opts = {}) {
+    const st = k.status, live = k.partial;
+    const pct = k.target && k.actual != null ? 100 * k.actual / k.target : null;
+    return `<div class="kc${opts.hero ? ' hero-kc' : ''}">
+      <div class="kc-h">${icon(opts.icon)}<span class="kc-l">${esc(opts.label || k.label)}${opts.sub ? `<small>${esc(opts.sub)}</small>` : ''}</span></div>
+      <div class="kc-v">${k.actual == null ? '—' : fmtVal(k.actual, k.unit)}</div>
+      <div class="kc-tg">Target <b>${fmtVal(k.target, k.unit)}</b></div>
+      <div class="kc-ach"><span>Achievement</span><b>${pct == null ? '—' : Math.round(pct) + '%'}</b></div>
+      ${k.actual == null ? '<div class="prog"><i style="width:0"></i></div>' : bar(k.actual, k.target, st, k.pace)}
+      <div class="kc-f"><span class="chip ${st.level}">${iconOf(st)} ${statusWord(st, live)}</span>${opts.d || ''}</div>
+      ${opts.note ? `<div class="kc-note">${esc(opts.note)}</div>` : ''}
+    </div>`;
+  }
+  // Kad metrik berbilang baris (views / engagement / followers / WhatsApp)
+  function mCard({ ic, label, sub, value, valueSub, d = '', rows, note }) {
+    return `<div class="card mcard">
+      <div class="kc-h">${icon(ic)}<span class="kc-l">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></div>
+      <div class="mc-v"><span class="kc-v">${value}</span>${valueSub ? `<span class="mc-vs">${valueSub}</span>` : ''}${d}</div>
+      <ul class="mrows">${rows.join('')}</ul>
+      ${note ? `<div class="chart-cap">${note}</div>` : ''}
+    </div>`;
+  }
+  // satu baris: label kiri, nilai kanan, maklumat tambahan (target / delta) di bawah nilai
+  const mRow = (lead, label, val, extra = '', cls = '') => `<li class="${cls}">${lead || ''}<span class="mr-l">${label}</span><span class="mr-v">${val}${extra ? `<small>${extra}</small>` : ''}</span></li>`;
+  const pctOf = (a, t) => a == null || !t ? '' : `${Math.round(100 * a / t)}% daripada ${fmt(t)}`;
+  const chipK = k => `<span class="chip ${k.status.level}">${iconOf(k.status)} ${statusWord(k.status, k.partial)}</span>`;
+
+  // =========================================================
+  // OVERVIEW — eksekutif, peringkat syarikat (semua outlet & platform digabung)
+  // =========================================================
+  async function viewOverview(key) {
+    const [y, m] = parseKey(key);
+    const { res, c, pc, cPace, live } = await monthContent(key);
+    const dim = daysIn(y, m), today = new Date().getDate();
+    const [py, pm] = KD.prevYM(y, m), prevLbl = monShort(py, pm);
+    const sc = KD.scorecard(state.ds, y, m, c, pc, cPace);
+    const S = id => sc.list.find(k => k.id === id);
+    const K = KD.kpis(state.ds, y, m);
+    const cc = KD.companyCompare(state.ds, y, m), co = cc.cur;
+    const P = id => co.plats.find(p => p.id === id);
+    const momD = v => delta(v, 'vs ' + prevLbl);
+
+    let h = `<div class="ov-hello"><p>Prestasi Marketing KLIKI <b>${monLabel(key)}</b> · semua outlet & platform digabung${live ? ` · hari ${today}/${dim}, status dinilai ikut kadar hari` : ''}</p>
       <span class="badge"><span class="live-dot"></span>${live ? 'Bulan semasa' : 'Bulan lengkap'}</span></div>`;
-    h += `<div class="kc-grid">
-      ${ovCard(kd(K.views, { label: 'Views', sub: 'TikTok', icon: 'views', hero: true }))}
-      ${ovCard({ label: 'Total Posts', sub: 'Content bulan ini', icon: 'posts', actual: hasPosts ? c.total : null, target: T.totalContent, pace: cPace, st: postSt,
-        foot: hasPosts ? `<span class="d"><span class="dl">purata</span> ${fmt(c.avg)}<span class="dl">/post</span></span>` : '' })}
-      ${ovCard({ label: 'Engagement', sub: 'Likes + Comments + Shares', icon: 'eng', actual: eAct, target: eTg, pace: K.likes.pace, st: eSt,
-        d: eNow != null && ePrev != null ? delta(KD.change(eNow, ePrev), 'vs ' + prevLbl) : '' })}
-      ${ovCard(kd(K.wa, { label: 'WhatsApp Clicks', sub: '4 outlet · Linktree', icon: 'wa' }))}
-      ${ovCard(kd(K.walkin, { label: 'Walk-in', sub: '4 outlet', icon: 'walk' }))}
+
+    // ---- 1. Content output ----
+    h += `<h2 class="sec">Content output <span class="note">· tab per-post bulanan, REPORT CONTENT DATA</span></h2>`;
+    if (!c) h += `<div class="card empty">${res.error ? `Tak dapat baca tab per-post: ${esc(res.error)}` : `Belum ada post direkod untuk ${monLabel(key)}.`}</div>`;
+    else {
+      const noType = 'Lajur TYPE tiada dalam tab bulan ini';
+      const ph = { actual: null, target: null, status: { level: 'na' }, partial: false };
+      h += `<div class="kc-grid g3">
+        ${ovCard(S('totalContent'), { icon: 'posts', hero: true, sub: `${fmt(c.avg)} views purata/post`, d: momD(S('totalContent').mom) })}
+        ${ovCard(c.hasType ? S('pov') : { ...ph, target: T.povCustomer }, { icon: 'pov', label: 'POV Customer', sub: 'Content dari sudut pelanggan', d: c.hasType ? momD(S('pov').mom) : '', note: c.hasType ? '' : noType })}
+        ${ovCard(c.hasType ? S('strategic') : { ...ph, target: T.strategic }, { icon: 'strat', label: 'Strategic Posts', sub: 'Educational · Trend · Review · Promo', d: c.hasType ? momD(S('strategic').mom) : '', note: c.hasType ? (c.noType ? `${c.noType} post tiada TYPE, tak dikira` : '') : noType })}
+      </div>`;
+      if (res.warning) h += `<div class="warn-box">⚠ ${esc(res.warning)}</div>`;
+    }
+
+    // ---- 2. Audience & hasil ----
+    h += `<h2 class="sec">Audience & hasil <span class="note">· Insight akaun TikTok, Facebook, Instagram</span></h2><div class="mc-grid">`;
+    const daysTxt = co.plats.filter(p => p.days).map(p => `${p.name} ${p.days}/${dim} hari`).join(' · ');
+    const tt = P('tiktok');
+    // Views
+    h += mCard({ ic: 'views', label: 'Total Views', sub: 'Merentas platform',
+      value: fmt(co.views), d: momD(cc.ch('views')),
+      rows: co.plats.map(p => mRow(platIc(p.id), p.name + (p.id === 'tiktok' ? ' <span class="tgt">target ' + fmt(T.tiktokViews) + '</span>' : ''),
+        p.views == null ? '—' : fmt(p.views),
+        p.id === 'tiktok' && p.views != null ? `${Math.round(100 * p.views / T.tiktokViews)}% · ${statusWord(K.views.status, K.views.partial)}` : (p.views != null && co.views ? `${Math.round(100 * p.views / co.views)}% daripada jumlah` : 'tiada data'),
+        p.id === 'tiktok' ? 'lv-' + K.views.status.level : '')),
+      note: `${daysTxt || 'Tiada data'}. Target rasmi hanya untuk TikTok.` });
+    // Engagement
+    const engRow = (k, name) => mRow('', name, fmt(K[k].actual), K[k].actual == null ? '' : `${pctOf(K[k].actual, K[k].target)}`, 'lv-' + K[k].status.level + ' sub');
+    h += mCard({ ic: 'eng', label: 'Total Engagement', sub: 'Merentas platform',
+      value: fmt(co.engagement), d: momD(cc.ch('engagement')),
+      rows: [
+        mRow(platIc('tiktok'), 'TikTok <span class="tgt">likes + comments + shares</span>', fmt(tt.engagement), tt.engagement == null ? 'tiada data' : `${Math.round(100 * tt.engagement / (T.likes + T.comments + T.shares))}% daripada ${fmt(T.likes + T.comments + T.shares)}`),
+        engRow('likes', 'Likes'), engRow('comments', 'Comments'), engRow('shares', 'Shares'),
+        ...['facebook', 'instagram'].map(id => { const p = P(id); return mRow(platIc(id), `${p.name} <span class="tgt">interactions</span>`, fmt(p.engagement), p.engagement == null ? 'tiada data' : ''); }),
+      ],
+      note: 'Facebook & Instagram: sheet hanya rekod jumlah Interactions, tiada pecahan like/comment/share.' });
+    // Followers
+    h += mCard({ ic: 'fol', label: 'Follower Growth', sub: 'Follower baru, semua platform',
+      value: fmt(co.newFollowers), d: momD(cc.ch('newFollowers')),
+      rows: [
+        mRow(platIc('tiktok'), 'TikTok <span class="tgt">follower baru</span>', fmt(tt.newFollowers), tt.newFollowers == null ? 'tiada data' : `${pctOf(tt.newFollowers, T.newFollowers)}`, 'lv-' + K.newFollowers.status.level),
+        mRow('', 'Unfollow', tt.lostFollowers == null ? '—' : '−' + fmt(tt.lostFollowers), '', 'sub'),
+        mRow('', 'Net', tt.netFollowers == null ? '—' : (tt.netFollowers > 0 ? '+' : '') + fmt(tt.netFollowers), `had bawah ${fmt(T.netFollowersFloor)}`, 'lv-' + K.netGrowth.status.level + ' sub'),
+        ...['facebook', 'instagram'].map(id => { const p = P(id); return mRow(platIc(id), `${p.name} <span class="tgt">follow baru</span>`, fmt(p.newFollowers), p.newFollowers == null ? 'tiada data' : momD(cc.ch('newFollowers', id))); }),
+      ],
+      note: 'Facebook & Instagram tiada data unfollow, jadi net follower hanya untuk TikTok.' });
+    // WhatsApp & Leads
+    const mc = KD.monthCore(state.ds, y, m);
+    const waAll = [mc.v.wa, mc.v.waOnline, mc.v.waBuyback].some(v => v != null) ? (mc.v.wa || 0) + (mc.v.waOnline || 0) + (mc.v.waBuyback || 0) : null;
+    h += mCard({ ic: 'wa', label: 'WhatsApp Clicks & Leads', sub: 'LINKTREE (bulanan) · tab Leads (harian)',
+      value: K.wa.actual == null ? '—' : fmt(K.wa.actual), valueSub: K.wa.actual == null ? 'LINKTREE belum diisi' : 'klik WA outlet',
+      d: K.wa.actual == null ? '' : cmp(K.wa, K.wa.prev, 'vs ' + prevLbl),
+      rows: [
+        mRow('', 'Klik WA 4 outlet', fmt(K.wa.actual), K.wa.actual == null ? 'belum diisi' : pctOf(K.wa.actual, K.wa.target), 'lv-' + K.wa.status.level),
+        mRow('', 'Klik WA Online Postage', fmt(mc.v.waOnline), mc.v.waOnline == null ? 'belum diisi' : '', 'sub'),
+        mRow('', 'Klik WA Buyback', fmt(mc.v.waBuyback), mc.v.waBuyback == null ? 'belum diisi' : '', 'sub'),
+        mRow('', 'Jumlah semua butang WA', fmt(waAll), '', 'sub'),
+        mRow('', 'Leads 4 outlet', fmt(K.leads.actual), K.leads.actual == null ? 'tiada data bulan ini' : `${pctOf(K.leads.actual, K.leads.target)} · ${mc.days.leads} hari data`, 'lv-' + K.leads.status.level),
+      ],
+      note: 'Target WA (6,000) & Leads hanya meliputi 4 outlet. Online Postage & Buyback tiada target.' });
+    h += `</div>`;
+
+    // ---- 3. Ringkasan status KPI + sorotan ----
+    const n = sc.list.length, nH = sc.hit.length, nM = sc.miss.length, nN = sc.na.length;
+    const seg = (v, cls) => v ? `<i class="${cls}" style="flex:${v}"></i>` : '';
+    const scoreCard = `<div class="card"><div class="card-h"><div><h3>Status KPI bulan ini</h3><div class="sub">${n} KPI bertarget${live ? ' · dinilai ikut kadar hari' : ''}</div></div>
+        <button class="link-btn" data-goto="analisis">Analisis penuh →</button></div>
+      <div class="sc-nums"><div class="good"><b>${nH}</b><span>${live ? 'On track' : 'Capai'}</span></div><div class="bad"><b>${nM}</b><span>Belum capai</span></div><div class="na"><b>${nN}</b><span>Tiada data</span></div></div>
+      <div class="sc-bar">${seg(nH, 'good')}${seg(nM, 'bad')}${seg(nN, 'na')}</div>
+      ${nM ? `<div class="sc-h">Paling jauh dari target</div><ul class="sc-list">${sc.miss.slice(0, 5).map(k => `<li><span>${esc(k.label)}</span><b>${Math.round((k.status.pct ?? 0))}%</b></li>`).join('')}</ul>` : ''}
+    </div>`;
+    const ins = KD.insights(state.ds, y, m);
+    const hl = ins.map(i => ({ ...i }));
+    if (c && c.top[0]) { const p = c.top[0]; hl.push({ kind: 'good', title: 'Post terbaik bulan ini', chip: fmt(p.views), text: `${p.kategori}${p.sub ? ' · ' + p.sub : ''}${p.type ? ' · ' + p.type : ''}${p.date ? `, ${p.date.d}/${p.date.m}` : ''}.` }); }
+    const hlCard = `<div class="card"><div class="card-h"><div><h3>Key Highlights</h3><div class="sub">Dijana dari data sebenar bulan ini</div></div></div>
+      ${hl.length ? `<ul class="hl-list">${hl.map(i => `<li class="${i.kind}"><span class="hi">${i.kind === 'good' ? '✓' : '✕'}</span><div><b>${esc(i.title)}</b><p>${esc(i.text)}</p></div><span class="ins-c">${esc(i.chip || '')}</span></li>`).join('')}</ul>` : '<div class="empty">Belum cukup data untuk highlight.</div>'}</div>`;
+    h += `<div class="ov-row r11">${scoreCard}${hlCard}</div>`;
+    h += `<div class="chart-cap">Prestasi setiap outlet ada di tab Outlet. Views content per-post (tab bulanan) tidak dicampur dengan views Insight akaun untuk elak double count.</div>`;
+    return h;
+  }
+
+  // =========================================================
+  // CONTENT PERFORMANCE
+  // =========================================================
+  // Stacked bar: views bulanan ikut platform
+  const PCOL = { tt: '#1565FF', fb: '#7FA8FF', ig: '#F0702B' };
+  function stackChart(rows, opts = {}) {
+    const W = opts.w || Math.min(chartW(), 1100), H = W > 500 ? 220 : 170, pl = 44, pr = 6, pt = 10, pb = 20;
+    const tot = rows.map(r => r.parts.reduce((a, p) => a + (p.v || 0), 0));
+    let max = Math.max(...tot, opts.target || 0, 1);
+    const y = v => pt + (H - pt - pb) * (max - v) / max;
+    const bw = (W - pl - pr) / rows.length, gap = Math.min(10, bw * 0.3);
+    const tl = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'K' : Math.round(v);
+    let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria || '')}">`;
+    for (const t of [0, max / 2, max]) s += `<line class="grid-l" x1="${pl}" x2="${W - pr}" y1="${y(t)}" y2="${y(t)}"/><text x="${pl - 4}" y="${y(t) + 3}" text-anchor="end">${tl(t)}</text>`;
+    rows.forEach((r, i) => {
+      const x = pl + i * bw + gap / 2, w = Math.max(2, bw - gap);
+      let base = 0;
+      for (const p of r.parts) {
+        if (!p.v) continue;
+        const y1 = y(base + p.v), y0 = y(base);
+        s += `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0.5, y0 - y1).toFixed(1)}" fill="${p.c}" opacity="${r.dim ? .45 : 1}"/>`;
+        base += p.v;
+      }
+      s += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle"${r.hl ? ' style="font-weight:700;fill:var(--text)"' : ''}>${esc(r.label)}</text>`;
+      s += `<rect class="hit" x="${pl + i * bw}" y="${pt}" width="${bw}" height="${H - pt - pb}" data-tip="${esc(r.tip)}"/>`;
+    });
+    return s + '</svg>';
+  }
+
+  async function viewContent(key) {
+    const [y, m] = parseKey(key);
+    const { res, c, pc, cPace, live } = await monthContent(key);
+    const [py, pm] = KD.prevYM(y, m), prevLbl = monShort(py, pm);
+    let h = '';
+
+    // ---- 1. Output vs target ----
+    h += `<h2>Content output vs target</h2>`;
+    if (!c) h += `<div class="card empty">${res.error ? `Tak dapat baca tab per-post untuk ${monLabel(key)}: ${esc(res.error)}` : `Belum ada post direkod untuk ${monLabel(key)}.`}</div>`;
+    else {
+      const sc = KD.scorecard(state.ds, y, m, c, pc, cPace);
+      const ids = ['totalContent', 'pov', 'strategic', 'postViews'].filter(id => sc.list.some(k => k.id === id));
+      const ks = ids.map(id => { const k = sc.list.find(x => x.id === id); return { ...k, nowN: k.nowN, prev: k.prev, lyN: null }; });
+      h += res.warning ? `<div class="warn-box">⚠ ${esc(res.warning)}</div>` : '';
+      h += kpiList(ks);
+      if (c.noType) h += `<div class="warn-box">⚠ ${c.noType} post tiada TYPE dalam sheet, jadi tak dikira sebagai POV atau Strategic.</div>`;
+      if (c.hasType) {
+        const mix = (title, counts, tg) => `<div class="card"><b>${title}</b><table><thead><tr><th></th><th>Post</th><th>Target</th><th>Status</th></tr></thead><tbody>${Object.keys(tg).map(k => {
+          const st = KD.status(counts[k], tg[k], cPace);
+          return `<tr><td>${esc(k)}</td><td><b>${counts[k]}</b></td><td>${tg[k]}</td><td><span class="st ${st.level}">${iconOf(st)}</span></td></tr>`;
+        }).join('')}</tbody></table></div>`;
+        h += `<h2>Strategic mix</h2><div class="pair">` + mix('Jenis', c.typeCount, T.strategicType) + mix('Subjek', c.subjCount, T.strategicSubject) + `</div>`;
+      } else h += `<div class="chart-cap" style="margin-top:8px">Lajur TYPE (POV Customer / Strategic) bermula dari tab SEPT'26.</div>`;
+    }
+
+    // ---- 2. Prestasi platform ----
+    const cc = KD.companyCompare(state.ds, y, m), co = cc.cur, dim = daysIn(y, m);
+    const cell = (p, k) => `<td><b>${fmt(p[k])}</b>${p[k] != null ? delta(cc.ch(k, p.id), '') : ''}</td>`;
+    h += `<h2>Prestasi TikTok, Instagram & Facebook <span class="note">· ▲▼ vs ${prevLbl}, dinormalkan ikut hari data</span></h2>
+      <div class="card"><div class="tbl-wrap"><table class="ptbl"><thead><tr><th>Platform</th><th>Views</th><th>Reach</th><th>Engagement</th><th>Follower baru</th><th>Hari data</th></tr></thead><tbody>
+      ${co.plats.map(p => `<tr><td><span class="pcell">${platIc(p.id)}${p.name}</span></td>${cell(p, 'views')}${cell(p, 'reach')}${cell(p, 'engagement')}${cell(p, 'newFollowers')}<td>${p.days}/${dim}</td></tr>`).join('')}
+      <tr class="tot"><td>Jumlah</td><td><b>${fmt(co.views)}</b>${delta(cc.ch('views'), '')}</td><td><b>${fmt(co.reach)}</b></td><td><b>${fmt(co.engagement)}</b>${delta(cc.ch('engagement'), '')}</td><td><b>${fmt(co.newFollowers)}</b>${delta(cc.ch('newFollowers'), '')}</td><td></td></tr>
+      </tbody></table></div><div class="chart-cap">Engagement TikTok = Likes + Comments + Shares; Facebook & Instagram = Interactions. Reach tidak dijumlahkan sebagai audiens unik (orang sama boleh dikira di beberapa platform).</div></div>`;
+
+    // ---- 3. Trend views bulanan ----
+    const series = KD.monthlySeries(state.ds).filter(r => r.key <= key).slice(-12);
+    const rows = series.map(r => {
+      const [yy, mm] = parseKey(r.key), d = daysIn(yy, mm);
+      const partial = ['tt', 'fb', 'ig'].some(p => r[p + '_days'] && r[p + '_days'] < d * 0.9);
+      const parts = [{ v: r.tt_views, c: PCOL.tt }, { v: r.fb_views, c: PCOL.fb }, { v: r.ig_views, c: PCOL.ig }];
+      const tot = parts.reduce((a, p) => a + (p.v || 0), 0);
+      return { label: MON[mm - 1], parts, hl: r.key === key, dim: partial,
+        tip: `${monLabel(r.key)}: ${fmt(tot)} · TikTok ${fmt(r.tt_views)} · FB ${fmt(r.fb_views)} · IG ${fmt(r.ig_views)}${partial ? ' (data tak lengkap)' : ''}` };
+    });
+    h += `<h2>Trend views bulanan</h2><div class="card"><div class="card-h"><div><h3>Views ikut platform</h3><div class="sub">12 bulan terakhir · Insight akaun</div></div>
+      <div class="legend"><span><i style="background:${PCOL.tt}"></i>TikTok</span><span><i style="background:${PCOL.fb}"></i>Facebook</span><span><i style="background:${PCOL.ig}"></i>Instagram</span></div></div>
+      ${stackChart(rows, { aria: 'Views bulanan ikut platform' })}<div class="chart-cap">Bar pudar = data harian bulan itu belum lengkap.</div></div>`;
+
+    if (!c) return h;
+
+    // ---- 4. Top content ----
+    h += `<h2>Top-performing content</h2><div class="card"><ul class="tcl">${c.top.map((p, i) => {
+      const tier = KD.tierOf(p.views);
+      const ttl = `${p.kategori}${p.sub ? ' · ' + p.sub : ''}`;
+      const meta = [p.date ? `${p.date.d}/${p.date.m}` : '', p.type, CFG.outletNames[p.outlet] || p.outlet].filter(Boolean).join(' · ');
+      const inner = `<span class="rk">${i + 1}</span><span style="min-width:0"><span class="tt" style="display:block">${esc(ttl)}${p.url ? ' <span style="color:var(--brand);font-size:11px">▶</span>' : ''}</span><span class="tm" style="display:block">${esc(meta)}</span></span>
+        <span class="tv">${fmt(p.views)}<span class="tier ${tier}">${tier}</span></span>`;
+      return `<li>${p.url ? `<a class="tc" href="${esc(p.url)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="tc">${inner}</div>`}</li>`;
+    }).join('')}</ul><div class="chart-cap">${c.top.some(p => p.url) ? 'Ketik post untuk buka video. ' : ''}Views TikTok per post · ${c.total} post · purata ${fmt(c.avg)}/post.</div></div>`;
+
+    // ---- 5. Content type & funnel ----
+    const grpTable = (title, g, order) => {
+      const keys = Object.keys(g).sort((a, b) => (order ? order.indexOf(a) - order.indexOf(b) : g[b].views - g[a].views));
+      const tv = keys.reduce((a, k) => a + g[k].views, 0);
+      return `<div class="card"><b>${title}</b><div class="tbl-wrap"><table><thead><tr><th></th><th>Post</th><th>Views</th><th>Purata</th><th>% views</th></tr></thead><tbody>${keys.map(k => `<tr><td>${esc(k)}</td><td>${g[k].posts}</td><td><b>${fmt(g[k].views)}</b></td><td>${fmt(g[k].views / g[k].posts)}</td><td>${tv ? Math.round(100 * g[k].views / tv) + '%' : '—'}</td></tr>`).join('')}</tbody></table></div></div>`;
+    };
+    h += `<h2>Prestasi ikut content type & funnel</h2><div class="pair wide">`;
+    h += c.hasType ? grpTable('Content type (TYPE)', c.byType) : `<div class="card"><b>Content type</b><div class="empty">Lajur TYPE tiada dalam tab bulan ini.</div></div>`;
+    h += c.hasFunnel ? grpTable('Funnel (TOFU / MOFU / BOFU)', c.byFunnel, ['TOFU', 'MOFU', 'BOFU'])
+      : `<div class="card"><b>Funnel TOFU / MOFU / BOFU</b><div class="empty">Tab per-post belum ada lajur TOFU/MOFU/BOFU.<br>Tambah satu lajur dengan nilai TOFU, MOFU atau BOFU untuk setiap post dan bahagian ini akan dipaparkan secara automatik.</div></div>`;
+    h += `</div>`;
+    h += `<div class="pair wide">${grpTable('Kategori', c.kategori)}<div class="card"><b>Views ikut bucket <span class="note">· bebas, tak dijumlahkan</span></b><div class="list" style="margin-top:10px">${Object.entries(c.bucketStats).map(([k, b]) => {
+      const st = KD.status(b.views, b.target, cPace);
+      return `<div class="li"><div class="top-row"><span class="name"><span class="st ${st.level}">${iconOf(st)}</span> ${esc(k)}</span><span class="nums"><b>${fmt(b.views)}</b> / ${fmt(b.target)} · ${b.posts} post</span></div>${bar(b.views, b.target, st, cPace)}</div>`;
+    }).join('')}</div></div></div>`;
+    h += `<div class="chart-cap">Diamond ≥ 1M · Gold ≥ 300K · Silver ≥ 100K. ${live ? 'Bulan semasa: status dinilai ikut kadar hari.' : ''}</div>`;
+    return h;
+  }
+
+  // =========================================================
+  // MARKETING ANALYSIS
+  // =========================================================
+  const NA_WHY = { 'Linktree & WhatsApp': 'LINKTREE belum diisi untuk bulan ini (dikemas kini sebulan sekali)', 'Leads & Walk-in': 'Tab Leads / Walk-in belum ada data bulan ini', TikTok: 'Tiada data TikTok Insight bulan ini', Content: 'Tab per-post tiada data' };
+  async function viewAnalysis(key) {
+    const [y, m] = parseKey(key);
+    const { c, pc, cPace, live } = await monthContent(key);
+    const [py, pm] = KD.prevYM(y, m), prevLbl = monShort(py, pm);
+    const sc = KD.scorecard(state.ds, y, m, c, pc, cPace);
+    let h = `<div class="ov-hello"><p>Analisis KPI <b>${monLabel(key)}</b> berbanding target rasmi dan ${monLabel(KD.ym(py, pm))}${live ? ' · bulan semasa dinilai ikut kadar hari' : ''}</p></div>`;
+    h += `<div class="sc-tiles"><div class="good"><b>${sc.hit.length}</b><span>${live ? 'On track' : 'Capai target'}</span></div><div class="bad"><b>${sc.miss.length}</b><span>${live ? 'Ketinggalan' : 'Gagal capai'}</span></div><div class="na"><b>${sc.na.length}</b><span>Tiada data</span></div></div>`;
+
+    // sorotan + cadangan
+    const ins = KD.insights(state.ds, y, m), f = KD.funnel(state.ds, y, m);
+    const act = f.weakest && ACT[f.weakest.id] ? `<div class="card action"><b>Cadangan fokus: ${esc(f.weakest.label)}</b><p>${ACT[f.weakest.id]}</p></div>` : '';
+    // perubahan terbesar vs bulan lepas
+    const withMom = sc.list.filter(k => k.mom != null && Number.isFinite(k.mom) && !k.floor);
+    const up = [...withMom].sort((a, b) => b.mom - a.mom).filter(k => k.mom > 0).slice(0, 4);
+    const down = [...withMom].sort((a, b) => a.mom - b.mom).filter(k => k.mom < 0).slice(0, 4);
+    const mv = (list, cls) => list.length ? `<ul class="sc-list">${list.map(k => `<li><span>${esc(k.label)}</span><b class="${cls}">${k.mom > 0 ? '▲' : '▼'} ${Math.abs(k.mom) >= 999 ? '>999' : Math.abs(k.mom).toFixed(0)}%</b></li>`).join('')}</ul>` : '<div class="empty">Tiada</div>';
+    h += `<div class="ov-row r11">
+      <div class="card"><div class="card-h"><div><h3>Insights</h3><div class="sub">Dijana dari data sebenar</div></div></div>
+        ${ins.length ? `<ul class="hl-list">${ins.map(i => `<li class="${i.kind}"><span class="hi">${i.kind === 'good' ? '✓' : '✕'}</span><div><b>${esc(i.title)}</b><p>${esc(i.text)}</p></div><span class="ins-c">${esc(i.chip || '')}</span></li>`).join('')}</ul>` : '<div class="empty">Belum cukup data.</div>'}${act}</div>
+      <div class="card"><div class="card-h"><div><h3>Perubahan vs ${prevLbl}</h3><div class="sub">Dinormalkan ikut hari data supaya bulan separa boleh dibanding</div></div></div>
+        <div class="pair tight"><div><div class="sc-h">Naik paling banyak</div>${mv(up, 'up')}</div><div><div class="sc-h">Turun paling banyak</div>${mv(down, 'down')}</div></div></div>
     </div>`;
 
-    // ---- Views trend + platform ----
-    const daily = new Map(s.tiktok.daily.map(d => [d.d, d.views]));
-    const pts = Array.from({ length: dim }, (_, i) => {
-      const v = daily.has(i + 1) ? daily.get(i + 1) : null;
-      return { label: String(i + 1), value: v, tip: v == null ? `${i + 1} ${MON[m - 1]}: tiada data` : `${i + 1} ${MON[m - 1]}: ${fmt(v)} views` };
-    });
-    const tgtDaily = T.tiktokViews / dim;
-    const trendCard = hasTT
-      ? `<div class="card"><div class="card-h"><div><h3>Views Trend</h3><div class="sub">TikTok harian · ${s.tiktok.days}/${dim} hari data · purata ${fmt(s.tiktok.views / s.tiktok.days)}/hari</div></div>
-          <div class="legend"><span><i style="background:var(--brand)"></i>Views</span><span><i class="ln"></i>Kadar target ${fmt(tgtDaily)}/hari</span></div></div>
-          ${lineChart(pts, { target: tgtDaily, aria: 'Trend views TikTok harian', w: chartW(2 / 3) })}</div>`
-      : `<div class="card"><div class="card-h"><div><h3>Views Trend</h3></div></div><div class="empty">Tiada data TikTok Insight untuk ${monLabel(key)}.</div></div>`;
-
-    const plats = [['tt', 'TikTok', 'T', s.tiktok, ps.tiktok], ['fb', 'Facebook', 'f', s.facebook, ps.facebook], ['ig', 'Instagram', 'IG', s.instagram, ps.instagram]];
-    const pMax = Math.max(1, ...plats.map(p => p[3].days ? p[3].views : 0));
-    const pTot = plats.reduce((a, p) => a + (p[3].days ? p[3].views : 0), 0);
-    const platCard = `<div class="card"><div class="card-h"><div><h3>Platform Performance</h3><div class="sub">Views bulan ini · perbandingan dinormalkan ikut hari data</div></div></div><div class="plat">${plats.map(([id, name, ab, cur, prev]) => {
-      if (!cur.days) return `<div class="plat-i"><div class="ph"><span class="pi ${id}">${ab}</span><span class="pn">${name}<small>Tiada data bulan ini</small></span><span class="pv">—</span></div></div>`;
-      const n = cur.views * (dim / cur.days), p = prev.days ? prev.views * (daysIn(py, pm) / prev.days) : null;
-      return `<div class="plat-i"><div class="ph"><span class="pi ${id}">${ab}</span><span class="pn">${name}<small>${cur.days} hari data · ${pTot ? Math.round(100 * cur.views / pTot) : 0}% daripada jumlah</small></span>
-        <span class="pv">${fmt(cur.views)}${delta(KD.change(n, p), 'vs ' + prevLbl)}</span></div>
-        <div class="pbar" data-tip="${esc(`${name}: ${fmt(cur.views)} views`)}"><i style="width:${(100 * cur.views / pMax).toFixed(1)}%"></i></div>
-        <div class="plat-meta"><span>Reach <b>${fmt(cur.reach)}</b></span>${id === 'tt' ? `<span>Profile <b>${fmt(cur.profileViews)}</b></span>` : `<span>Interactions <b>${fmt(cur.interactions)}</b></span>`}</div></div>`;
-    }).join('')}</div></div>`;
-    h += `<div class="ov-row r21">${trendCard}${platCard}</div>`;
-
-    // ---- Content funnel + target vs actual ----
-    const f = KD.funnel(state.ds, y, m);
-    const W = [100, 90, 80, 70, 61, 53];
-    const C = [['#0A2E8A', '#123FB0'], ['#0F3AA8', '#1A50D0'], ['#1449C4', '#1F5DE6'], ['#1565FF', '#3A7BFF'], ['#3A7BFF', '#5E92FF'], ['#5E92FF', '#82AAFF']];
-    let fun = '';
-    if (f.stages.some(st => st.value > 0)) {
-      f.stages.forEach((st, i) => {
-        if (i) {
-          const cls = f.weakest && f.weakest.id === st.id ? 'weak' : f.strongest && f.strongest.id === st.id ? 'strong' : '';
-          fun += `<div class="vf-rate ${cls}"><b>${fmtPct(st.rate, st.rate != null && st.rate < 10 ? 2 : 1)}</b> ${esc(st.note)}${cls === 'weak' ? ' · paling lemah' : cls === 'strong' ? ' · paling baik' : ''}</div>`;
-        }
-        fun += `<div class="vf-st"><div class="vf-bar" style="--w:${W[i]}%;--c1:${C[i][0]};--c2:${C[i][1]}" data-tip="${esc(`${st.label}: ${fmt(st.value)}`)}"><span class="vn">${esc(st.label)}</span><span class="vv">${fmt(st.value)}</span></div></div>`;
-      });
-    }
-    const funCard = `<div class="card"><div class="card-h"><div><h3>Content Funnel</h3><div class="sub">Views → Walk-in · kadar = peringkat ÷ peringkat atas</div></div></div>
-      ${fun ? `<div class="vfun">${fun}</div><div class="chart-cap">Lebar bar menunjukkan urutan peringkat, bukan skala. Butiran penuh di tab Funnel.</div>` : `<div class="empty">Belum ada data aliran pelanggan.</div>`}</div>`;
-
-    const trow = (label, k) => {
-      const st = k.status, a = k.actual;
-      const pct = k.floor ? null : st.pct;
-      const tgTxt = k.floor ? `≥ ${fmt(k.target)}` : fmtVal(k.target, k.unit);
-      const w = pct == null ? 0 : Math.min(100, pct);
-      return `<tr><td>${esc(label)}</td><td>${tgTxt}</td><td><b>${fmtVal(a, k.unit)}</b></td>
+    const trow = k => {
+      const st = k.status, pct = k.floor ? null : st.pct, w = pct == null ? 0 : Math.min(100, pct);
+      const tg = k.floor ? `≥ ${fmt(k.target)}` : fmtVal(k.target, k.unit);
+      const momTxt = k.floor || (k.nowN != null && k.nowN < 0) ? cmp(k, k.prev, '') : delta(k.mom, '');
+      return `<tr><td>${esc(k.label)}<small>${esc(k.group)}</small></td><td>${tg}</td><td><b>${fmtVal(k.actual, k.unit)}</b></td>
         <td><span class="ach"><span class="mini"><i class="${st.level}" style="width:${w.toFixed(0)}%"></i></span>${pct == null ? '—' : Math.round(pct) + '%'}</span></td>
-        <td><span class="chip ${st.level}">${iconOf(st)} ${statusWord(st, k.partial)}</span></td></tr>`;
+        <td>${momTxt || '—'}</td><td>${chipK(k)}</td></tr>`;
     };
-    const grp = t => `<tr class="grp"><td colspan="5">${t}</td></tr>`;
-    let tva = grp('TikTok') + ['views', 'likes', 'comments', 'shares', 'profileViews', 'newFollowers', 'netGrowth'].map(id => trow(K[id].label, K[id])).join('');
-    if (hasPosts) {
-      const ck = (label, a, tg) => ({ actual: a, target: tg, status: KD.status(a, tg, cPace), partial: cPace < 1 });
-      tva += grp('Content') + trow('Total Content', ck('', c.total, T.totalContent));
-      if (c.hasType) tva += trow('POV Customer', ck('', c.pov, T.povCustomer)) + trow('Strategic', ck('', c.strategic, T.strategic));
+    const tbl = (title, list, sub) => list.length ? `<h2>${title} <span class="note">· ${list.length} KPI${sub ? ' · ' + sub : ''}</span></h2><div class="card"><div class="tbl-wrap"><table class="tva"><thead><tr><th>KPI</th><th>Target</th><th>Actual</th><th>Achievement</th><th>vs ${prevLbl}</th><th>Status</th></tr></thead><tbody>${list.map(trow).join('')}</tbody></table></div></div>` : '';
+    h += tbl(live ? 'KPI on track' : 'KPI capai target', sc.hit);
+    h += tbl(live ? 'KPI ketinggalan' : 'KPI gagal capai', sc.miss, 'jurang terbesar di atas');
+    if (sc.na.length) {
+      const byG = {};
+      for (const k of sc.na) (byG[k.group] = byG[k.group] || []).push(k.label);
+      h += `<h2>Tiada data <span class="note">· tidak dikira sebagai 0</span></h2><div class="card"><ul class="na-why">${Object.entries(byG).map(([g, l]) => `<li><b>${esc(l.join(', '))}</b><p>${esc(NA_WHY[g] || 'Sumber data kosong')}</p></li>`).join('')}</ul></div>`;
     }
-    tva += grp('Linktree') + ['uniqueClicks', 'ctrProfile', 'ctrAction', 'telegram'].map(id => trow(K[id].label, K[id])).join('');
-    tva += grp('Jualan (4 outlet)') + ['wa', 'leads', 'walkin', 'conversion'].map(id => trow(K[id].label, K[id])).join('');
-    const tvaCard = `<div class="card"><div class="card-h"><div><h3>Target vs Actual</h3><div class="sub">Target rasmi bulanan · Achievement = actual ÷ target</div></div></div>
-      <div class="tbl-wrap"><table class="tva"><thead><tr><th>Metrik</th><th>Target</th><th>Actual</th><th>Achievement</th><th>Status</th></tr></thead><tbody>${tva}</tbody></table></div></div>`;
-    h += `<div class="ov-row r12">${funCard}${tvaCard}</div>`;
-
-    // ---- Top content + outlet performance ----
-    let topCard = `<div class="card"><div class="card-h"><div><h3>Top Performing Content</h3><div class="sub">${hasPosts ? `${c.total} post · purata ${fmt(c.avg)} views/post` : 'Dari tab per-post bulanan'}</div></div></div>`;
-    if (res.error) topCard += `<div class="empty">Tak dapat baca tab per-post: ${esc(res.error)}</div>`;
-    else if (!hasPosts) topCard += `<div class="empty">Belum ada post direkod untuk ${monLabel(key)}.</div>`;
-    else {
-      topCard += `<ul class="tcl">${c.top.map((p, i) => {
-        const tier = KD.tierOf(p.views);
-        const ttl = `${p.kategori}${p.sub ? ' · ' + p.sub : ''}`;
-        const meta = [p.date ? `${p.date.d}/${p.date.m}` : '', CFG.outletNames[p.outlet] || p.outlet, p.type].filter(Boolean).join(' · ');
-        const inner = `<span class="rk">${i + 1}</span><span style="min-width:0"><span class="tt" style="display:block">${esc(ttl)}${p.url ? ' <span style="color:var(--brand);font-size:11px">▶</span>' : ''}</span><span class="tm" style="display:block">${esc(meta)}</span></span>
-          <span class="tv">${fmt(p.views)}<span class="tier ${tier}">${tier}</span></span>`;
-        return `<li>${p.url ? `<a class="tc" href="${esc(p.url)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="tc">${inner}</div>`}</li>`;
-      }).join('')}</ul>`;
-      if (res.warning) topCard += `<div class="warn-box">⚠ ${esc(res.warning)}</div>`;
-    }
-    topCard += `</div>`;
-
-    const os = outletScores(key);
-    const cell = (v, pctU) => {
-      if (!v) return '<td>—</td>';
-      if (v.a == null) return `<td><span class="dot na"></span>—</td>`;
-      return `<td><span class="dot ${v.st.level}"></span><b>${pctU ? fmtPct(v.a, 0) : fmt(v.a)}</b> <span style="color:var(--muted)">/ ${pctU ? v.tg + '%' : fmt(v.tg)}</span></td>`;
-    };
-    const outCard = `<div class="card"><div class="card-h"><div><h3>Outlet Performance</h3><div class="sub">Skor = KPI capai daripada jumlah · disusun ikut skor</div></div></div>
-      <div class="tbl-wrap"><table class="otbl"><thead><tr><th>Outlet</th><th>Skor</th><th>Leads</th><th>Walk-in</th><th>Conv.</th><th>Klik WA</th></tr></thead><tbody>
-      ${os.cards.map(cd => `<tr><td><b>${esc(CFG.outletNames[cd.x])}</b></td><td><span class="score ${cd.lvl}">${cd.hit}/${cd.total}</span></td>
-        ${cell(cd.vals.leads)}${cell(cd.vals.walkin)}${cell(cd.vals.conversion, true)}${cell(cd.vals.wa)}</tr>`).join('')}
-      </tbody></table></div><div class="chart-cap">Butiran 9 KPI setiap outlet di tab Outlet.</div></div>`;
-    h += `<div class="ov-row r11 wide-r">${topCard}${outCard}</div>`;
-
-    // ---- Key highlights + next action ----
-    const ins = KD.insights(state.ds, y, m);
-    const hl = ins.map(i => ({ kind: i.kind, title: i.title, chip: i.chip, text: i.text }));
-    if (hasPosts && c.top[0]) {
-      const p = c.top[0];
-      hl.push({ kind: 'good', title: 'Post terbaik bulan ini', chip: fmt(p.views), text: `${p.kategori}${p.sub ? ' · ' + p.sub : ''} dari ${CFG.outletNames[p.outlet] || p.outlet}${p.date ? `, ${p.date.d}/${p.date.m}` : ''}.` });
-    }
-    const hlCard = `<div class="card"><div class="card-h"><div><h3>Key Highlights</h3><div class="sub">Perkara paling penting bulan ini</div></div></div>
-      ${hl.length ? `<ul class="hl-list">${hl.map(i => `<li class="${i.kind}"><span class="hi">${i.kind === 'good' ? '✓' : '✕'}</span><div><b>${esc(i.title)}</b><p>${esc(i.text)}</p></div><span class="ins-c">${esc(i.chip || '')}</span></li>`).join('')}</ul>` : '<div class="empty">Belum cukup data untuk highlight.</div>'}</div>`;
-
-    const acts = [];
-    if (f.weakest && ACT[f.weakest.id]) acts.push({ t: `Baiki peringkat “${f.weakest.label}”`, p: ACT[f.weakest.id] });
-    const weakO = [...os.cards].reverse().find(cd => cd.miss.length);
-    if (weakO) acts.push({ t: `Outlet ${CFG.outletNames[weakO.x]}: ${weakO.miss.length} KPI merah`, p: `Fokus pada ${weakO.miss.join(', ')}.` });
-    if (hasPosts && c.total < T.totalContent) {
-      const need = T.totalContent - c.total, left = dim - today;
-      acts.push(live && left > 0
-        ? { t: `Tambah ${need} post lagi`, p: `Perlu ${need} post dalam ${left} hari lagi (≈${(need / left).toFixed(1)} sehari) untuk capai target ${T.totalContent}.` }
-        : { t: `Content kurang ${need} post`, p: `Bulan ini ${c.total} post berbanding target ${T.totalContent}.` });
-    }
-    const naCard = `<div class="card next"><div class="card-h"><div><h3>Next Action</h3><div class="sub">Dijana dari funnel, skor outlet & target content</div></div></div>
-      ${acts.length ? `<ol class="na-list">${acts.map(a => `<li><div><b>${esc(a.t)}</b><p>${esc(a.p)}</p></div></li>`).join('')}</ol>` : '<div class="empty">Tiada tindakan kritikal. Semua peringkat funnel dan outlet tiada KPI merah.</div>'}</div>`;
-    h += `<div class="ov-row r11">${hlCard}${naCard}</div>`;
+    if (!c) h += `<div class="warn-box">⚠ KPI content tidak dinilai kerana tab per-post ${monLabel(key)} tiada data.</div>`;
+    if (c && live) h += `<div class="chart-cap">Views content per-post bulan semasa masih bertambah (video baru belum cukup umur), jadi perbandingan views per-post dengan bulan lepas belum muktamad.</div>`;
+    h += `<div class="chart-cap">Status: ✓ capai/on track · ! 80–99% · ↗ bawah target tapi naik vs bulan lepas · ✕ bawah target & tak naik. Butiran aliran pelanggan di tab Funnel.</div>`;
     return h;
   }
 
@@ -607,12 +658,14 @@
     view.className = 'v-' + state.tab;
     let html;
     try {
-      if (state.tab === 'content' || state.tab === 'overview') {
-        if (!state.ds.posts[key]) view.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuatkan post ${monLabel(key)}…</p></div>`;
-        html = state.tab === 'content' ? await viewContent(key) : await viewOverview(key);
-      } else if (state.tab === 'outlet') html = viewOutlet(key);
+      if (['overview', 'content', 'analisis', 'outlet'].includes(state.tab) && !state.ds.posts[key]) {
+        view.innerHTML = `<div class="loading"><div class="spinner"></div><p>Memuatkan post ${monLabel(key)}…</p></div>`;
+      }
+      if (state.tab === 'overview') html = await viewOverview(key);
+      else if (state.tab === 'content') html = await viewContent(key);
+      else if (state.tab === 'analisis') html = await viewAnalysis(key);
+      else if (state.tab === 'outlet') html = await viewOutlet(key);
       else if (state.tab === 'trend') html = viewTrend(key);
-      else if (state.tab === 'ringkasan') html = viewRingkasan(key);
       else html = viewFunnel(key);
     } catch (e) {
       console.error(e);
@@ -663,6 +716,8 @@
   $('#refresh').addEventListener('click', () => { if (state.ds) state.ds.posts = {}; load(); });
   // jalur outlet: buka butiran & skrol
   document.addEventListener('click', e => {
+    const g = e.target.closest('[data-goto]');
+    if (g) { state.tab = g.dataset.goto; localSet('tab', state.tab); render(); scrollTo(0, 0); return; }
     const t = e.target.closest('.otile'); if (!t) return;
     e.preventDefault();
     const d = document.querySelector(t.getAttribute('href')); if (!d) return;
